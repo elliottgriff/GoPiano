@@ -12,6 +12,9 @@
 		4FD6AC9221B72BE200698302 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9021B72BE200698302 /* Main.storyboard */; };
 		4FD6AC9421B72BE300698302 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9321B72BE300698302 /* Assets.xcassets */; };
 		4FD6AC9721B72BE300698302 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9521B72BE300698302 /* LaunchScreen.storyboard */; };
+		4FD6AC9F21B72C4A00698302 /* Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9E21B72C4A00698302 /* Keyboard.swift */; };
+		4FD6ACA521B72CF700698302 /* AudioKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FD6ACA321B72CF700698302 /* AudioKitUI.framework */; };
+		4FD6ACA621B72CF700698302 /* AudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FD6ACA421B72CF700698302 /* AudioKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +25,10 @@
 		4FD6AC9321B72BE300698302 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4FD6AC9621B72BE300698302 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		4FD6AC9821B72BE300698302 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4FD6AC9E21B72C4A00698302 /* Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keyboard.swift; sourceTree = "<group>"; };
+		4FD6ACA021B72C9100698302 /* gpiano.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = gpiano.sf2; sourceTree = "<group>"; };
+		4FD6ACA321B72CF700698302 /* AudioKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKitUI.framework; path = my_Piano/AudioKitUI.framework; sourceTree = "<group>"; };
+		4FD6ACA421B72CF700698302 /* AudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKit.framework; path = my_Piano/AudioKit.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +36,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FD6ACA521B72CF700698302 /* AudioKitUI.framework in Frameworks */,
+				4FD6ACA621B72CF700698302 /* AudioKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -39,7 +48,9 @@
 			isa = PBXGroup;
 			children = (
 				4FD6AC8B21B72BE200698302 /* my_Piano */,
+				4FD6ACA121B72CA100698302 /* Sound File */,
 				4FD6AC8A21B72BE200698302 /* Products */,
+				4FD6ACA221B72CF700698302 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -56,12 +67,30 @@
 			children = (
 				4FD6AC8C21B72BE200698302 /* AppDelegate.swift */,
 				4FD6AC8E21B72BE200698302 /* ViewController.swift */,
+				4FD6AC9E21B72C4A00698302 /* Keyboard.swift */,
 				4FD6AC9021B72BE200698302 /* Main.storyboard */,
 				4FD6AC9321B72BE300698302 /* Assets.xcassets */,
 				4FD6AC9521B72BE300698302 /* LaunchScreen.storyboard */,
 				4FD6AC9821B72BE300698302 /* Info.plist */,
 			);
 			path = my_Piano;
+			sourceTree = "<group>";
+		};
+		4FD6ACA121B72CA100698302 /* Sound File */ = {
+			isa = PBXGroup;
+			children = (
+				4FD6ACA021B72C9100698302 /* gpiano.sf2 */,
+			);
+			path = "Sound File";
+			sourceTree = "<group>";
+		};
+		4FD6ACA221B72CF700698302 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4FD6ACA421B72CF700698302 /* AudioKit.framework */,
+				4FD6ACA321B72CF700698302 /* AudioKitUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -136,6 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4FD6AC8F21B72BE200698302 /* ViewController.swift in Sources */,
+				4FD6AC9F21B72C4A00698302 /* Keyboard.swift in Sources */,
 				4FD6AC8D21B72BE200698302 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -284,11 +314,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MR77GZV3WJ;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/my_Piano",
+				);
 				INFOPLIST_FILE = my_Piano/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.ecgriffin.my-Piano";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
@@ -302,11 +337,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MR77GZV3WJ;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/my_Piano",
+				);
 				INFOPLIST_FILE = my_Piano/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.ecgriffin.my-Piano";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
