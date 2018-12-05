@@ -1,6 +1,6 @@
 //
 //  Keyboard.swift
-//  my_Piano
+//  MyPiano
 //
 //  Created by elliott on 11/8/18.
 //  Copyright © 2018 Elliott Griffin. All rights reserved.

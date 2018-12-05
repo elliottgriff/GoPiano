@@ -1,6 +1,6 @@
 //
 //  ViewController.swift
-//  my_Piano
+//  MyPiano
 //
 //  Created by elliott on 9/21/18.
 //  Copyright © 2018 Elliott Griffin. All rights reserved.
