@@ -11,15 +11,17 @@ import AudioKit
 import AudioKitUI
 
 class ViewController: UIViewController, AKKeyboardDelegate {
+    
     override var prefersStatusBarHidden: Bool {
         return true
     }
     
     var midiSample = AKMIDISampler()
-    var recorder = try! AKNodeRecorder()
+    var recorder: AKNodeRecorder!
     var player: AKPlayer!
     var tape = try! AKAudioFile()
     var mix = AKMixer()
+    var numberOfRecordings:Int = 0
     
     var state = State.readyToRecord
     
@@ -35,7 +37,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         case recording
         case readyToPlay
         case playing
-        
     }
     
     
@@ -65,17 +66,20 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         reverb.loadFactoryPreset(.mediumRoom)
         mix = AKMixer(reverb)
         
-        recorder = try! AKNodeRecorder(node: mix)
+        recorder = try? AKNodeRecorder(node: mix)
         
         if let file = recorder.audioFile {
             player = AKPlayer(audioFile: file)
+            AudioKit.output = AKMixer(player, mix)
+            recorder = try! AKNodeRecorder(node: mix, file: tape)
+            AKSettings.defaultToSpeaker = true
         }
         
         player.isLooping = true
-        //        player.buffering = .always
         player.completionHandler = playingEnded
         
         AudioKit.output = mix
+
         do {
             try AudioKit.start()
         } catch {
@@ -87,6 +91,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+
         
         setupButtonNames()
         setupUIForRecording()
@@ -139,18 +144,30 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             state = .recording
             do {
                 try recorder.record()
-            } catch { AKLog("Errored recording.") }
+            } catch {
+                AKLog("Error recording")
+            }
             
+//            numberOfRecordings += 1
+//            let fileName = getDirectory().appendingPathComponent("\(numberOfRecordings).m4a")
+//            let settings = [AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 12000, AVNumberOfChannelsKey: 1, AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue]
+//
+//            //start recording
+//            let outputFile = try! AVAudioFile(forWriting: fileName, settings: settings)
+//            try! AudioKit.renderToFile(outputFile, duration: self.player.duration)
             
         case .recording :
             tape = recorder.audioFile!
             player.load(audioFile: tape)
             
-            
             if let _ = player.audioFile?.duration {
                 recorder.stop()
-                tape.exportAsynchronously(name: "test.caf",
-                                          baseDir: .temp,
+                
+//                UserDefaults.standard.set(numberOfRecordings, forKey: "myNumber")
+                //                myTableView.reloadData()
+                
+                tape.exportAsynchronously(name: "temp",
+                                          baseDir: .documents,
                                           exportFormat: .caf) {_, exportError in
                                             if let error = exportError {
                                                 AKLog("Export Failed \(error)")
@@ -168,6 +185,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         case .playing :
             player.stop()
             setupUIForPlaying()
+
         }
     }
     
@@ -186,18 +204,15 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         recButton.setTitle("RECORD", for: .normal)
         resetButton.isHidden = false
         resetButton.isEnabled = true
-        recorder = try! AKNodeRecorder(node: mix)
     }
     
     func setupUIForPlaying () {
         let recordedDuration = player != nil ? player.audioFile?.duration  : 0
-        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!))"
+        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!)) sec."
         recButton.setTitle("PLAY", for: .normal)
         state = .readyToPlay
         resetButton.isHidden = false
         resetButton.isEnabled = true
-        //        player.load(audioFile: recorder.audioFile!)
-        AudioKit.output = player
     }
     
     @IBAction func resetButtonTouched(sender: UIButton) {
@@ -205,11 +220,25 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         do {
             try recorder.reset()
         } catch { AKLog("Errored resetting.") }
+        AKAudioFile.cleanTempDirectory()
         
-        //        player.load(audioFile: recorder.audioFile!)
         setupUIForRecording()
     }
     
+    //Get Directory Path
+    func getDirectory() -> URL {
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        let documentDirectory = paths[0]
+        return documentDirectory
+    }
+    
+    //Display Alerts
+    func displayAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "dismiss", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+
     
     private func setupKeyboardUI() {
         let keyboard = Keyboard(width: 1,
