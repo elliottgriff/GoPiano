@@ -78,6 +78,10 @@
                                 <color key="backgroundColor" red="0.1966513966" green="1" blue="0.29822248369999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="25"/>
                                 <state key="normal" title="+"/>
+                                <connections>
+                                    <action selector="upOctave:" destination="9Ew-Uj-s9n" eventType="touchUpInside" id="rmv-lO-HcF"/>
+                                    <action selector="upOctavePress:" destination="SPW-ve-e62" eventType="touchUpInside" id="Oms-eY-v4x"/>
+                                </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Fze-BD-tqF">
                                 <rect key="frame" x="151" y="15" width="30" height="45"/>
@@ -85,17 +89,8 @@
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="25"/>
                                 <state key="normal" title="-"/>
                                 <connections>
-                                    <action selector="downButtonPressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="EIP-n9-eoh"/>
-                                </connections>
-                            </button>
-                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="SYg-4e-yIm">
-                                <rect key="frame" x="52" y="14" width="30" height="45"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <color key="backgroundColor" red="0.1966513966" green="1" blue="0.29822248369999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="25"/>
-                                <state key="normal" title="+"/>
-                                <connections>
-                                    <action selector="upButtonPressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="MJ2-F3-r9c"/>
+                                    <action selector="downOctave:" destination="9Ew-Uj-s9n" eventType="touchUpInside" id="Jmv-St-JMG"/>
+                                    <action selector="downOctavePressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="Cdq-Kq-Sua"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -121,14 +116,15 @@
                         <viewLayoutGuide key="safeArea" id="Von-3v-6aP"/>
                     </view>
                     <connections>
-                        <outlet property="downOctaveButton" destination="Fze-BD-tqF" id="qca-2R-XKF"/>
                         <outlet property="infoLabel" destination="mLw-tD-7lO" id="MsA-Da-zwF"/>
+                        <outlet property="octaveDown" destination="Fze-BD-tqF" id="EBO-71-4B2"/>
+                        <outlet property="octaveUp" destination="6rK-vj-Bby" id="FYW-TK-dU6"/>
                         <outlet property="recButton" destination="oYg-LD-zYY" id="dCS-Jg-sI7"/>
                         <outlet property="resetButton" destination="v5s-6z-Cct" id="mwt-aW-xRF"/>
-                        <outlet property="upOctaveButton" destination="6rK-vj-Bby" id="Idm-X9-yOJ"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dmr-bp-OVn" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                <exit id="9Ew-Uj-s9n" userLabel="Exit" sceneMemberID="exit"/>
             </objects>
             <point key="canvasLocation" x="20.689655172413794" y="-170.40000000000001"/>
         </scene>

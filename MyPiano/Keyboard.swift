@@ -10,13 +10,14 @@ import UIKit
 import AudioKit
 import AudioKitUI
 
-@IBDesignable open class Keyboard: UIView, AKMIDIListener {
+
+@IBDesignable public class Keyboard: UIView, AKMIDIListener {
     
     /// Number of octaves displayed at once
     @IBInspectable open var octaveCount: Int = 1
     
     /// Lowest octave dispayed
-    @IBInspectable open var firstOctave: Int = 4 {
+    @IBInspectable public var firstOctave: Int = 1 {
         didSet {
             self.setNeedsDisplay()
         }
@@ -56,7 +57,7 @@ import AudioKitUI
         }
     }
     
-    let baseMIDINote = 0 // MIDINote 24 is C0
+    let baseMIDINote = 24 // MIDINote 24 is C0
     
     /// Allows multiple notes to play concurrently
     open var polyphonicMode = true {
@@ -88,7 +89,7 @@ import AudioKitUI
     }
     
     /// Initialize the keyboard
-    public init(width: Int, height: Int, firstOctave: Int = 4, octaveCount: Int = 1) {
+    public init(width: Int, height: Int, firstOctave: Int = 1, octaveCount: Int = 1) {
         self.octaveCount = octaveCount
         self.firstOctave = firstOctave
         super.init(frame: CGRect(x: 0, y: 0, width: width, height: height))

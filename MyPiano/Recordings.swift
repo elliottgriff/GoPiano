@@ -10,29 +10,29 @@ import UIKit
 import AudioKit
 import AudioKitUI
 
-class Recordings: UIViewController, UITableViewDelegate, UITableViewDataSource {
+public class Recordings: UIViewController, UITableViewDelegate, UITableViewDataSource {
     
-    var player: AKPlayer!
+    var player: AVAudioPlayer!
     var numberOfRecordings:Int = 0
     
     @IBOutlet weak var myTableView: UITableView!
     
 
-    override func viewDidLoad() {
+    override public func viewDidLoad() {
         super.viewDidLoad()
 
         if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
             numberOfRecordings = number
         }
     }
-    
-    
     //Get Directory Path
     func getDirectory() -> URL {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
         let documentDirectory = paths[0]
         return documentDirectory
     }
+    
+
     
     //Display Alerts
     func displayAlert(title: String, message: String) {
@@ -41,24 +41,20 @@ class Recordings: UIViewController, UITableViewDelegate, UITableViewDataSource {
         present(alert, animated: true, completion: nil)
     }
     
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return numberOfRecordings
     }
     
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         cell.textLabel?.text = String(indexPath.row + 1)
         return cell
     }
     
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let path = getDirectory().appendingPathComponent("\(indexPath.row + 1).m4a")
-        do {
-            player = try AKPlayer(url: path)
-            player.play()
-        } catch {
-            print("Error playing")
-        }
+        player = try! AVAudioPlayer(contentsOf: path)
+        player.play()
     }
 
     /*
