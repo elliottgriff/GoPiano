@@ -324,11 +324,11 @@ import AudioKitUI
             }
         }
         
-        if ❗️polyphonicMode {
-            for key in onKeys where key != newNote {
-                pressRemoved(key)
-            }
-        }
+//        if ❗️polyphonicMode {
+//            for key in onKeys where key != newNote {
+//                pressRemoved(key)
+//            }
+//        }
         
         if ❗️onKeys.contains(newNote) && !noteIsAlreadyOn {
             onKeys.insert(newNote)
@@ -344,14 +344,14 @@ import AudioKitUI
         }
         onKeys.remove(note)
         delegate?.noteOff(note: note)
-        if ❗️polyphonicMode {
-            // in mono mode, replace with note from highest remaining touch, if it exists
-            var remainingNotes = notesFromTouches(touches ?? Set<UITouch>())
-            remainingNotes = remainingNotes.filter { $0 != note }
-            if let highest = remainingNotes.max() {
-                pressAdded(highest)
-            }
-        }
+//        if ❗️polyphonicMode {
+//            // in mono mode, replace with note from highest remaining touch, if it exists
+//            var remainingNotes = notesFromTouches(touches ?? Set<UITouch>())
+//            remainingNotes = remainingNotes.filter { $0 != note }
+//            if let highest = remainingNotes.max() {
+//                pressAdded(highest)
+//            }
+//        }
         setNeedsDisplay()
     }
     
