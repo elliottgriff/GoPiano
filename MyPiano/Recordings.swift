@@ -20,6 +20,8 @@ public class Recordings: UIViewController, UITableViewDelegate, UITableViewDataS
 
     override public func viewDidLoad() {
         super.viewDidLoad()
+        
+        self.view.backgroundColor = UIColor(patternImage: UIImage(named: "wood_background.png")!)
 
         if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
             numberOfRecordings = number
@@ -52,7 +54,7 @@ public class Recordings: UIViewController, UITableViewDelegate, UITableViewDataS
     }
     
     public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let path = getDirectory().appendingPathComponent("\(indexPath.row + 1).m4a")
+        let path = getDirectory().appendingPathComponent("\(indexPath.row + 1).caf")
         player = try! AVAudioPlayer(contentsOf: path)
         player.play()
     }

@@ -100,15 +100,14 @@
                                     <action selector="upOctavePress:" destination="SPW-ve-e62" eventType="touchUpInside" id="Oms-eY-v4x"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="vds-rL-Rwz">
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" adjustsImageSizeForAccessibilityContentSizeCategory="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="vds-rL-Rwz">
                                 <rect key="frame" x="546" y="15" width="87" height="45"/>
                                 <color key="backgroundColor" red="0.0" green="0.56284224989999998" blue="0.31881666180000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="87" id="7wu-f4-Ohc"/>
                                     <constraint firstAttribute="height" constant="45" id="9Lo-eb-5xX"/>
                                 </constraints>
-                                <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="25"/>
-                                <state key="normal" title="PLAY">
+                                <state key="normal" title="PLAY" image="playButtonImage">
                                     <color key="titleColor" red="0.99999600649999998" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 </state>
                                 <connections>
@@ -116,7 +115,7 @@
                                 </connections>
                             </button>
                         </subviews>
-                        <color key="backgroundColor" red="0.26051741839999998" green="0.2605243921" blue="0.260520637" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" white="0.66666666666666663" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                         <constraints>
                             <constraint firstItem="v5s-6z-Cct" firstAttribute="leading" secondItem="mLw-tD-7lO" secondAttribute="trailing" constant="5" id="1Yf-zC-pF6"/>
                             <constraint firstItem="v5s-6z-Cct" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="F6F-26-2Ab"/>
@@ -210,6 +209,7 @@
     </scenes>
     <resources>
         <image name="minusRed" width="50" height="10"/>
+        <image name="playButtonImage" width="224" height="224"/>
         <image name="plusGreen" width="50" height="50"/>
     </resources>
 </document>

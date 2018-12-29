@@ -52,7 +52,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
     var keyboardy = Keyboard(width: 1,
                             height: 0,
                             firstOctave: 2,
-                            octaveCount: 1)
+                            octaveCount: 2)
     
     
     var recState = RecordState.readyToRecord
@@ -137,11 +137,11 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        self.view.backgroundColor = UIColor(patternImage: UIImage(named: "wood_background.png")!)
         
-        playButton.isEnabled = false
         setupUIForRecording()
         setupKeyboardUI()
-        AudioKit.engine.reset()
+        try! AudioKit.engine.start()
     }
     
     
@@ -155,7 +155,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
     
     @IBAction func upOctavePress(_ sender: UIButton) {
         if keyboardy.firstOctave == 6 {
-            print("it's over 9,000!")
+            print("I love Ashley")
         } else {
             keyboardy.firstOctave += 1
         }
@@ -175,6 +175,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
     @IBAction func playButtonTouched(_ sender: UIButton) {
         switch playState {
             case .readyToPlay :
+                try! AudioKit.engine.start()
                 player.play()
                 playButton.setTitle("STOP", for: .normal)
                 playState = .playing
@@ -201,15 +202,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
                 AKLog("Error recording")
             }
             
-//            outputFile = try! AVAudioFile(forWriting: self.exportURL, settings: self.recorder.audioFile!.fileFormat.settings)
-//            try! AudioKit.renderToFile(outputFile!, duration: (self.recorder.audioFile?.duration)!, prerender: {
-//                self.player.play()
-//            })
-//
-//            outputFile = try! AVAudioFile(forWriting: self.exportURL, settings: self.recorder.audioFile!.fileFormat.settings)
-//            try! AudioKit.renderToFile(outputFile!, duration: (self.recorder.audioFile?.duration)!, prerender: {
-//                self.player.play()
-//            })
+
 
             
         case .recording :
@@ -234,6 +227,19 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
                                                 AKLog("Export succeeded")
                                             }
                 }
+                
+//                let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("recorded.caf")
+//                let format = AVAudioFormat(commonFormat: .pcmFormatFloat64, sampleRate: 44100, channels: 2, interleaved: false)!
+//                let recordFile = try! AKAudioFile(forWriting: url, settings: format.settings)
+//                
+//                do {
+//                    try AudioKit.engine.start()
+//                    try AudioKit.renderToFile(recordFile, duration: self.player.duration)
+//                    try AudioKit.renderToFile(recordFile, duration: self.player.duration)
+//                    
+//                } catch {
+//                    fatalError("error rendering file: \(error)")
+//                }
 
                 
                 let recordedDuration = player != nil ? player.audioFile?.duration  : 0
@@ -241,6 +247,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
                 recState = .readyToRecord
                 recButton.setTitle("RECORD", for: .normal)
                 playButton.isEnabled = true
+                playButton.isHighlighted = false
                 if player.isPlaying {
                     print("already playing")
                 } else {
@@ -271,6 +278,8 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
         recState = .readyToRecord
         infoLabel.text = "0.00 sec."
         recButton.setTitle("RECORD", for: .normal)
+        playButton.isHighlighted = true
+        playButton.isEnabled = false
     }
     
     func setupUIForPlaying () {
@@ -332,6 +341,24 @@ class ViewController: UIViewController, AKKeyboardDelegate, AVAudioRecorderDeleg
         UserDefaults.standard.set(numberOfRecordings, forKey: "myNumber")
         recordings?.myTableView.reloadData()
         
+    }
+    
+    func record() {
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("recorded.caf")
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat64, sampleRate: 44100, channels: 2, interleaved: false)!
+        let recordFile = try! AKAudioFile(forWriting: url, settings: format.settings)
+        AudioKit.output = mix
+        do {
+            try AudioKit.renderToFile(recordFile, duration: self.player.duration, prerender: {
+                self.player.play()
+            } )
+            try AudioKit.renderToFile(recordFile, duration: self.player.duration, prerender: {
+                self.player.play()
+            } )
+        } catch {
+            fatalError("error rendering file: \(error)")
+        }
+
     }
     
     public func setupKeyboardUI() {
