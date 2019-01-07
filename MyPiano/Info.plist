@@ -26,8 +26,6 @@
 	<true/>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>House Keeping?</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow Microphone?</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

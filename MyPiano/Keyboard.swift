@@ -8,16 +8,18 @@
 
 import UIKit
 import AudioKit
-import AudioKitUI
+import
+AudioKitUI
 
 
 @IBDesignable public class Keyboard: UIView, AKMIDIListener {
+
     
     /// Number of octaves displayed at once
     @IBInspectable open var octaveCount: Int = 1
     
     /// Lowest octave dispayed
-    @IBInspectable public var firstOctave: Int = 1 {
+    @IBInspectable open var firstOctave: Int = 1 {
         didSet {
             self.setNeedsDisplay()
         }
@@ -56,6 +58,7 @@ import AudioKitUI
             }
         }
     }
+    
     
     let baseMIDINote = 24 // MIDINote 24 is C0
     
@@ -103,6 +106,7 @@ import AudioKitUI
     /// Initialization within Interface Builder
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
+        
         isMultipleTouchEnabled = true
     }
     
@@ -111,6 +115,7 @@ import AudioKitUI
     /// Set up the view for rendering in Interface Builder
     override open func prepareForInterfaceBuilder() {
         super.prepareForInterfaceBuilder()
+        
         
         let width = Int(self.frame.width)
         let height = Int(self.frame.height)
@@ -203,7 +208,7 @@ import AudioKitUI
     }
     
     func addLabels(i: Int, octaveNumber: Int, whiteKeysRect: CGRect) {
-        let textColor: UIColor =  #colorLiteral(red: 0.5098039216, green: 0.5098039216, blue: 0.5294117647, alpha: 1)
+        let textColor: UIColor =  #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
         
         //            // Add Labels
         let context = UIGraphicsGetCurrentContext()!
@@ -226,6 +231,7 @@ import AudioKitUI
     // MARK: - Touch Handling
     
     func notesFromTouches(_ touches: Set<UITouch>) -> [MIDINoteNumber] {
+
         var notes = [MIDINoteNumber]()
         for touch in touches {
             if let note = noteFromTouchLocation(touch.location(in: self)) {

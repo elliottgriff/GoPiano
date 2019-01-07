@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4FBCB58E21C0787600AA4BFD /* Recordings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBCB58D21C0787600AA4BFD /* Recordings.swift */; };
+		4FA6560F21DFE2AB0085150F /* Recordings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA6560E21DFE2AB0085150F /* Recordings.swift */; };
+		4FC514F521DE671900D4C184 /* AudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FC514F321DE671900D4C184 /* AudioKit.framework */; };
+		4FC514F621DE671900D4C184 /* AudioKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FC514F421DE671900D4C184 /* AudioKitUI.framework */; };
 		4FD6AC8D21B72BE200698302 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6AC8C21B72BE200698302 /* AppDelegate.swift */; };
 		4FD6AC8F21B72BE200698302 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6AC8E21B72BE200698302 /* ViewController.swift */; };
 		4FD6AC9221B72BE200698302 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9021B72BE200698302 /* Main.storyboard */; };
@@ -15,13 +17,13 @@
 		4FD6AC9721B72BE300698302 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9521B72BE300698302 /* LaunchScreen.storyboard */; };
 		4FD6AC9F21B72C4A00698302 /* Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6AC9E21B72C4A00698302 /* Keyboard.swift */; };
 		4FDC981021B83BD4009BEC6C /* gpiano.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = 4FDC980F21B83B3B009BEC6C /* gpiano.sf2 */; };
-		4FDC981321B83DF6009BEC6C /* AudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FDC981121B83DF6009BEC6C /* AudioKit.framework */; };
-		4FDC981421B83DF6009BEC6C /* AudioKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FDC981221B83DF6009BEC6C /* AudioKitUI.framework */; };
 		4FDC981621B83E1E009BEC6C /* Default-568h@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 4FDC981521B83E1E009BEC6C /* Default-568h@2x.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		4FBCB58D21C0787600AA4BFD /* Recordings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recordings.swift; sourceTree = "<group>"; };
+		4FA6560E21DFE2AB0085150F /* Recordings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recordings.swift; sourceTree = "<group>"; };
+		4FC514F321DE671900D4C184 /* AudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKit.framework; path = MyPiano/AudioKit.framework; sourceTree = "<group>"; };
+		4FC514F421DE671900D4C184 /* AudioKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKitUI.framework; path = MyPiano/AudioKitUI.framework; sourceTree = "<group>"; };
 		4FD6AC8921B72BE200698302 /* MyPiano.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyPiano.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4FD6AC8C21B72BE200698302 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4FD6AC8E21B72BE200698302 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -31,8 +33,6 @@
 		4FD6AC9821B72BE300698302 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4FD6AC9E21B72C4A00698302 /* Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keyboard.swift; sourceTree = "<group>"; };
 		4FDC980F21B83B3B009BEC6C /* gpiano.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = gpiano.sf2; sourceTree = "<group>"; };
-		4FDC981121B83DF6009BEC6C /* AudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKit.framework; path = MyPiano/AudioKit.framework; sourceTree = "<group>"; };
-		4FDC981221B83DF6009BEC6C /* AudioKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioKitUI.framework; path = MyPiano/AudioKitUI.framework; sourceTree = "<group>"; };
 		4FDC981521B83E1E009BEC6C /* Default-568h@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Default-568h@2x.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -41,8 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4FDC981321B83DF6009BEC6C /* AudioKit.framework in Frameworks */,
-				4FDC981421B83DF6009BEC6C /* AudioKitUI.framework in Frameworks */,
+				4FC514F521DE671900D4C184 /* AudioKit.framework in Frameworks */,
+				4FC514F621DE671900D4C184 /* AudioKitUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,7 +55,6 @@
 				4FDC981521B83E1E009BEC6C /* Default-568h@2x.png */,
 				4FD6AC8B21B72BE200698302 /* MyPiano */,
 				4FD6AC8A21B72BE200698302 /* Products */,
-				4FD6ACA121B72CA100698302 /* Sound File */,
 				4FD6ACA221B72CF700698302 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -73,29 +72,22 @@
 			children = (
 				4FD6AC8C21B72BE200698302 /* AppDelegate.swift */,
 				4FD6AC8E21B72BE200698302 /* ViewController.swift */,
-				4FBCB58D21C0787600AA4BFD /* Recordings.swift */,
+				4FA6560E21DFE2AB0085150F /* Recordings.swift */,
 				4FD6AC9E21B72C4A00698302 /* Keyboard.swift */,
 				4FD6AC9021B72BE200698302 /* Main.storyboard */,
 				4FD6AC9321B72BE300698302 /* Assets.xcassets */,
 				4FD6AC9521B72BE300698302 /* LaunchScreen.storyboard */,
 				4FD6AC9821B72BE300698302 /* Info.plist */,
-			);
-			path = MyPiano;
-			sourceTree = "<group>";
-		};
-		4FD6ACA121B72CA100698302 /* Sound File */ = {
-			isa = PBXGroup;
-			children = (
 				4FDC980F21B83B3B009BEC6C /* gpiano.sf2 */,
 			);
-			path = "Sound File";
+			path = MyPiano;
 			sourceTree = "<group>";
 		};
 		4FD6ACA221B72CF700698302 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				4FDC981121B83DF6009BEC6C /* AudioKit.framework */,
-				4FDC981221B83DF6009BEC6C /* AudioKitUI.framework */,
+				4FC514F321DE671900D4C184 /* AudioKit.framework */,
+				4FC514F421DE671900D4C184 /* AudioKitUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -181,7 +173,7 @@
 				4FD6AC8F21B72BE200698302 /* ViewController.swift in Sources */,
 				4FD6AC9F21B72C4A00698302 /* Keyboard.swift in Sources */,
 				4FD6AC8D21B72BE200698302 /* AppDelegate.swift in Sources */,
-				4FBCB58E21C0787600AA4BFD /* Recordings.swift in Sources */,
+				4FA6560F21DFE2AB0085150F /* Recordings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,7 +332,7 @@
 					"@executable_path/Frameworks",
 				);
 				OTHER_LDFLAGS = "-lc++";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.ecgriffin.my-Piano";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ecgriffin.MyPiano;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -364,7 +356,7 @@
 					"@executable_path/Frameworks",
 				);
 				OTHER_LDFLAGS = "-lc++";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.ecgriffin.my-Piano";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ecgriffin.MyPiano;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TARGETED_DEVICE_FAMILY = "1,2";
