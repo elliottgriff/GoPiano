@@ -15,9 +15,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     var midiSample = AKMIDISampler()
     var recorder: AKNodeRecorder!
     var player = AKPlayer()
-    var newPlayer: AKAudioPlayer!
     var tape = try? AKAudioFile()
-//    var fileTape = try? AKAudioFile()
     var mix = AKMixer()
     var playingMix = AKMixer()
 //    var outputFile: AVAudioFile!
@@ -34,7 +32,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     @IBOutlet private weak var octaveUp: UIButton!
     @IBOutlet private weak var octaveDown: UIButton!
     @IBOutlet private weak var octaveCount: UIButton!
-    @IBOutlet weak var filesPage: UIButton!
     
     override var prefersStatusBarHidden: Bool {
         return true
@@ -82,17 +79,15 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         
         if let file = recorder.audioFile {
             AKSettings.defaultToSpeaker = true
-            newPlayer = try? AKAudioPlayer(file: file)
-            try! newPlayer.replace(file: file)
-            playingMix = AKMixer(newPlayer, mix)
+            player = AKPlayer(audioFile: file)
+            playingMix = AKMixer(player, mix)
             AudioKit.output = playingMix
             recorder = try? AKNodeRecorder(node: playingMix)
             
         }
         
-//        player.isLooping = true
-        newPlayer.looping = true
-        newPlayer.completionHandler = playingEnded
+        player.isLooping = true
+        player.completionHandler = playingEnded
         
         
         do {
@@ -133,9 +128,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     
     //MARK:  Buttons
     
-    @IBAction func filesPagePressed(_ sender: UIButton) {
-        print("files page pressed")
-    }
+
     
 
     @IBAction func octaveCountPressed(_ sender: UIButton) {
@@ -164,7 +157,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
 
     @IBAction func downOctavePressed(_ sender: UIButton) {
-        if keyboardView.firstOctave == 0 {
+         if keyboardView.firstOctave == 0 {
             print("the Tao is like water...")
         } else {
             keyboardView.firstOctave += -1
@@ -174,15 +167,13 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     @IBAction func playButtonTouched(_ sender: UIButton) {
         switch playState {
             case .readyToPlay :
-//                player.play()
-                newPlayer.play()
+                player.play()
                 playButton.setTitle("STOP", for: .normal)
                 playState = .playing
 
             
             case .playing :
-//                player.stop()
-                newPlayer.stop()
+                player.stop()
                 playButton.setTitle("PLAY", for: .normal)
                 playState = .readyToPlay
         }
@@ -203,20 +194,14 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         case .recording :
             
             if let tape = recorder.audioFile {
-//                player.load(audioFile: tape)
-                do {
-                    try newPlayer.replace(file: tape)
-                } catch {
-                    print("error reloading")
-                }
+                player.load(audioFile: tape)
             }
             
             
             
-//            if let _ = player.audioFile?.duration {
-//                recorder.stop()
-//            }
-            recorder.stop()
+            if let _ = player.audioFile?.duration {
+                recorder.stop()
+            }
             
             
                 tape?.exportAsynchronously(name: "temp.caf",
@@ -253,8 +238,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     
     
     @IBAction func resetButtonTouched(sender: UIButton) {
-//        player.stop()
-        newPlayer.stop()
+        player.stop()
         do {
             try recorder.reset()
         } catch { AKLog("Errored resetting.") }
@@ -304,18 +288,12 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     
     func finishedRecording() {
         
-//        let recordedDuration = player.audioFile?.duration
-        let recordedDuration = newPlayer.audioFile.duration
-        infoLabel.text = "\(String(format: "%0.001f", recordedDuration)) sec."
+        let recordedDuration = player.audioFile?.duration
+        infoLabel.text = "\(String(format: "%0.001f", recordedDuration!)) sec."
         recState = .readyToRecord
         playButton.isEnabled = true
         playButton.isHighlighted = false
-//        if player.isPlaying {
-//            print("already playing")
-//        } else {
-//            playState = .readyToPlay
-//        }
-        if newPlayer.isPlaying {
+        if player.isPlaying {
             print("already playing")
         } else {
             playState = .readyToPlay
@@ -323,10 +301,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func setupUIForPlaying () {
-//        let recordedDuration = player.audioFile?.duration
-        let recordedDuration = newPlayer.audioFile.duration
-        infoLabel.text = "\(String(format: "%0.001f", recordedDuration)) sec."
-//        infoLabel.text = "\(Double(recordedDuration))"
+        let recordedDuration = player.audioFile?.duration
+        infoLabel.text = "\(String(format: "%0.001f", recordedDuration!)) sec."
         playButton.setTitle("PLAY", for: .normal)
         playState = .readyToPlay
     }
