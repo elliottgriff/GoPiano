@@ -13,9 +13,8 @@ import AudioKitUI
 class Recordings : UIViewController, UITableViewDelegate, UITableViewDataSource {
     
     var home: ViewController!
-    var filePlayer: AVAudioPlayer!
+    var filePlayer: AKPlayer!
     var numberOfRecordings: Int = 0
-    
     
     
     @IBOutlet weak var myTableView: UITableView!
@@ -24,11 +23,14 @@ class Recordings : UIViewController, UITableViewDelegate, UITableViewDataSource 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        AudioKit.engine.reset()
+//        do {
+//            try AudioKit.start()
+//        } catch {
+//            print("error starting on recordings page")
+//        }
         
-        if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
-            numberOfRecordings = number
-        }
+        UserDefaults.standard.set(home.numberOfRecordings, forKey: "myNumber")
+
 
         
     }
@@ -45,7 +47,7 @@ class Recordings : UIViewController, UITableViewDelegate, UITableViewDataSource 
     }
     
      func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return numberOfRecordings
+        return home.numberOfRecordings
     }
     
      func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -56,16 +58,9 @@ class Recordings : UIViewController, UITableViewDelegate, UITableViewDataSource 
     
      func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let path = getDirectory().appendingPathComponent("\(indexPath.row + 1).caf")
-        do {
-            filePlayer = try AVAudioPlayer(contentsOf: path)
-            filePlayer.prepareToPlay()
+//            try AudioKit.start()
+            filePlayer = AKPlayer(url: path)
             filePlayer.play()
-        } catch {
-            print("error loading file")
-        }
-        
+            print("tried to play")
     }
-    
-
-    
 }

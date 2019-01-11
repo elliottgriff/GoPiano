@@ -38,9 +38,9 @@ AudioKitUI
     @IBInspectable open var  blackKeyOff: UIColor = #colorLiteral(red: 0.06666666667, green: 0.06666666667, blue: 0.06666666667, alpha: 1)
     
     /// Activated key color
-    @IBInspectable open var  keyOnUserColor: UIColor = #colorLiteral(red: 0.5891326057, green: 0.7401276286, blue: 0.8698247145, alpha: 1)
+    @IBInspectable open var  keyOnUserColor: UIColor = #colorLiteral(red: 1, green: 0.7913168073, blue: 0.7851312757, alpha: 1)
     
-    var keyOnColor: UIColor = #colorLiteral(red: 0.5891326057, green: 0.7401276286, blue: 0.8698247145, alpha: 1)
+    var keyOnColor: UIColor = #colorLiteral(red: 1, green: 0.7913168073, blue: 0.7851312757, alpha: 1)
     
     
     
@@ -141,12 +141,12 @@ AudioKitUI
         }
         
         let tempWidth = CGFloat(width) - CGFloat((octaveCount * 7) - 1) * whiteKeySize.width - 1
-        //        let backgroundPath = UIBezierPath(rect: CGRect(x: oneOctaveSize.width * CGFloat(octaveCount),
-        //                                                       y: 0,
-        //                                                       width: tempWidth,
-        //                                                       height: oneOctaveSize.height))
-        //        UIColor.black.setFill()
-        //        backgroundPath.fill()
+                let backgroundPath = UIBezierPath(rect: CGRect(x: oneOctaveSize.width * CGFloat(octaveCount),
+                                                               y: 0,
+                                                               width: tempWidth,
+                                                               height: oneOctaveSize.height))
+                UIColor.black.setFill()
+                backgroundPath.fill()
         
         
         let lastCRect = CGRect(x: whiteKeyX(0, octaveNumber: octaveCount),
@@ -208,7 +208,7 @@ AudioKitUI
     }
     
     func addLabels(i: Int, octaveNumber: Int, whiteKeysRect: CGRect) {
-        let textColor: UIColor =  #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
+        let textColor: UIColor =  #colorLiteral(red: 0.7540688515, green: 0.7540867925, blue: 0.7540771365, alpha: 1)
         
         //            // Add Labels
         let context = UIGraphicsGetCurrentContext()!
@@ -216,7 +216,7 @@ AudioKitUI
         let whiteKeysStyle = NSMutableParagraphStyle()
         whiteKeysStyle.alignment = .center
         let whiteKeysFontAttributes  = [
-            .font: UIFont(name: "AvenirNextCondensed-Regular", size: 18)!,
+            .font: UIFont(name: "Helvetica", size: 18)!,
             .foregroundColor: textColor,
             .paragraphStyle: whiteKeysStyle,
             ] as [NSAttributedString.Key: Any]
@@ -409,7 +409,7 @@ AudioKitUI
     func topKeyColor(_ n: Int, octaveNumber: Int) -> UIColor {
         
         blackKeyOff = #colorLiteral(red: 0.06666666667, green: 0.06666666667, blue: 0.06666666667, alpha: 1)
-        keyOnColor = #colorLiteral(red: 0.431372549, green: 0.431372549, blue: 0.4509803922, alpha: 1)
+        keyOnColor = #colorLiteral(red: 0.501960814, green: 0.501960814, blue: 0.501960814, alpha: 1)
         if notesWithSharps[topKeyNotes[n]].range(of: "#") != nil {
             return onKeys.contains(
                 MIDINoteNumber((firstOctave + octaveNumber) * 12 + topKeyNotes[n] + baseMIDINote)

@@ -2,7 +2,7 @@
   "images" : [
     {
       "idiom" : "universal",
-      "filename" : "playButtonImage.png",
+      "filename" : "upButton.png",
       "scale" : "1x"
     },
     {
