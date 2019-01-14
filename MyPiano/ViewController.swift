@@ -24,6 +24,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     var recState = RecordState.readyToRecord
     var playState = PlayState.readyToPlay
     var numberOfRecordings: Int = 0
+    var timer = Timer()
+    var time = 0
     
     @IBOutlet private weak var infoLabel: UILabel!
     @IBOutlet private weak var resetButton: UIButton!
@@ -114,9 +116,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
             numberOfRecordings = number
         }
-        
-        
-
     }
     
     
@@ -140,7 +139,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             keyboardView.octaveCount += -1
         }
         viewDidLoad()
-        
     }
 
     @IBAction func upOctavePress(_ sender: UIButton) {
@@ -152,8 +150,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         } else {
             keyboardView.firstOctave += 1
         }
-        
-
     }
 
     @IBAction func downOctavePressed(_ sender: UIButton) {
@@ -179,9 +175,14 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         }
     }
     
-    @IBAction func recButtonTouched(sender: UIButton) {
+    @IBAction @objc func recButtonTouched(sender: UIButton) {
         switch recState {
         case .readyToRecord :
+            
+
+            time = 0
+            timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(ViewController.action), userInfo: nil, repeats: true)
+            
             recButton.setTitle("STOP", for: .normal)
             recState = .recording
             do {
@@ -190,6 +191,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             } catch {
                 AKLog("Error recording")
             }
+            
 
         case .recording :
             
@@ -197,10 +199,9 @@ class ViewController: UIViewController, AKKeyboardDelegate {
                 player.load(audioFile: tape)
             }
             
-            
-            
             if let _ = player.audioFile?.duration {
                 recorder.stop()
+                timer.invalidate()
             }
             
             
@@ -231,6 +232,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
 //
 //
 //            try! AudioKit.start()
+            playButton.setTitle("PLAY", for: .normal)
             recButton.setTitle("RECORD", for: .normal)
             finishedRecording()
             }
@@ -245,8 +247,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         setupUIForPlaying()
         playButton.isHighlighted = true
         playButton.isEnabled = false
-        infoLabel.text = "0.0 sec."
-        infoLabel.layer.cornerRadius = 10
+        time = 0
+        infoLabel.text = "00:00"
         
     }
     
@@ -254,6 +256,15 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     struct Constants {
         static let empty = ""
     }
+    
+    @objc func action() {
+        let minutes = Int(time) / 60 % 60
+        let seconds = Int(time) % 60
+        
+        time += 1
+        infoLabel.text = String(format:"%02i:%02i", minutes, seconds)
+    }
+    
     
     func loadSound() {
         try! midiSample.loadMelodicSoundFont("gpiano", preset: 0)
@@ -265,7 +276,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         } catch {
             print("error sampling")
         }
-        
     }
     
     public func noteOff(note: MIDINoteNumber) {
@@ -282,14 +292,18 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func disablePlayButtons () {
-        playButton.isHighlighted = true
-        playButton.isEnabled = false
+        if player.audioFile?.length == nil {
+            playButton.isHighlighted = true
+            playButton.isEnabled = false
+        } else {
+            print("won't disable Play button, there is a File to play")
+        }
     }
     
     func finishedRecording() {
         
-        let recordedDuration = player.audioFile?.duration
-        infoLabel.text = "\(String(format: "%0.001f", recordedDuration!)) sec."
+//        let recordedDuration = player.audioFile?.duration
+//        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!)) sec."
         recState = .readyToRecord
         playButton.isEnabled = true
         playButton.isHighlighted = false
@@ -301,8 +315,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func setupUIForPlaying () {
-        let recordedDuration = player.audioFile?.duration
-        infoLabel.text = "\(String(format: "%0.001f", recordedDuration!)) sec."
+//        let recordedDuration = player.audioFile?.duration
+//        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!)) sec."
         playButton.setTitle("PLAY", for: .normal)
         playState = .readyToPlay
     }
@@ -360,5 +374,4 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         keyboardView.polyphonicMode = true
         NSLayoutConstraint.activate([keyboardYconstraint, keyboardHeightConstraint, keyboardWidthConstraint])
     }
-    
 }
