@@ -27,6 +27,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     var timer = Timer()
     var time = 0
     
+    
     @IBOutlet private weak var infoLabel: UILabel!
     @IBOutlet private weak var resetButton: UIButton!
     @IBOutlet private weak var recButton: UIButton!
@@ -100,7 +101,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
 
-    
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -112,6 +112,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         
         loadSound()
         setupKeyboardUI()
+        setupButtonsUI()
         disablePlayButtons()
         if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
             numberOfRecordings = number
@@ -126,12 +127,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     //MARK:  Buttons
-    
-
-    
 
     @IBAction func octaveCountPressed(_ sender: UIButton) {
-        
         
         if keyboardView.octaveCount == 1 {
             keyboardView.octaveCount += 1
@@ -181,7 +178,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             
 
             time = 0
-            timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(ViewController.action), userInfo: nil, repeats: true)
+            timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(ViewController.action), userInfo: nil, repeats: true)
             
             recButton.setTitle("STOP", for: .normal)
             recState = .recording
@@ -242,13 +239,21 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     @IBAction func resetButtonTouched(sender: UIButton) {
         player.stop()
         do {
-            try recorder.reset()
-        } catch { AKLog("Errored resetting.") }
+            if recorder.isRecording {
+                try recorder.reset()
+                try recorder.record()
+            } else {
+                try recorder.reset()
+            }
+        } catch {
+            print("error reseting while recording")
+        }
+
         setupUIForPlaying()
         playButton.isHighlighted = true
         playButton.isEnabled = false
         time = 0
-        infoLabel.text = "00:00"
+        infoLabel.text = "00:00:00"
         
     }
     
@@ -258,11 +263,12 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     @objc func action() {
-        let minutes = Int(time) / 60 % 60
-        let seconds = Int(time) % 60
+        let miliseconds = Int(time) % 100
+        let seconds = Int(time) / 100 % 60
+        let minutes = Int(time) / 6000 % 60
         
         time += 1
-        infoLabel.text = String(format:"%02i:%02i", minutes, seconds)
+        infoLabel.text = String(format:"%02i:%02i:%02i", minutes, seconds, miliseconds)
     }
     
     
@@ -286,13 +292,9 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         }
     }
     
-    func setupButtonNames() {
-        recButton.setTitle(Constants.empty, for: UIControl.State.disabled)
-        playButton.setTitle(Constants.empty, for: UIControl.State.disabled)
-    }
     
     func disablePlayButtons () {
-        if player.audioFile?.length == nil {
+        if player.audioFile?.duration == 0 {
             playButton.isHighlighted = true
             playButton.isEnabled = false
         } else {
@@ -301,9 +303,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func finishedRecording() {
-        
-//        let recordedDuration = player.audioFile?.duration
-//        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!)) sec."
         recState = .readyToRecord
         playButton.isEnabled = true
         playButton.isHighlighted = false
@@ -315,8 +314,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func setupUIForPlaying () {
-//        let recordedDuration = player.audioFile?.duration
-//        infoLabel.text = "\(String(format: "%0.01f", recordedDuration!)) sec."
         playButton.setTitle("PLAY", for: .normal)
         playState = .readyToPlay
     }
@@ -361,6 +358,57 @@ class ViewController: UIViewController, AKKeyboardDelegate {
 //
 //        UserDefaults.standard.set(shit.numberOfRecordings, forKey: "myNumber")
 //    }
+    
+    public func setupButtonsUI() {
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        playButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        playButton.leadingAnchor.constraint(lessThanOrEqualToSystemSpacingAfter: recButton.trailingAnchor, multiplier: 5).isActive = true
+        playButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.1).isActive = true
+        playButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        playButton.layer.cornerRadius = 10
+        
+        recButton.translatesAutoresizingMaskIntoConstraints = false
+        recButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        recButton.leadingAnchor.constraint(equalToSystemSpacingAfter: view.leadingAnchor, multiplier: 70).isActive = true
+        recButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.15).isActive = true
+        recButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        recButton.layer.cornerRadius = 10
+        
+        octaveCount.translatesAutoresizingMaskIntoConstraints = false
+        octaveCount.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        octaveCount.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 5).isActive = true
+        octaveCount.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.1).isActive = true
+        octaveCount.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        octaveCount.layer.cornerRadius = 10
+        
+        octaveUp.translatesAutoresizingMaskIntoConstraints = false
+        octaveUp.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        octaveUp.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 27.5).isActive = true
+        octaveUp.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
+        octaveUp.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        octaveUp.layer.cornerRadius = 10
+        
+        octaveDown.translatesAutoresizingMaskIntoConstraints = false
+        octaveDown.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        octaveDown.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 17.5).isActive = true
+        octaveDown.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
+        octaveDown.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        octaveDown.layer.cornerRadius = 10
+        
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
+        resetButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        resetButton.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 57.5).isActive = true
+        resetButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
+        resetButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        resetButton.layer.cornerRadius = 10
+        
+        infoLabel.translatesAutoresizingMaskIntoConstraints = false
+        infoLabel.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
+        infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 37.5).isActive = true
+        infoLabel.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.175).isActive = true
+        infoLabel.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        infoLabel.layer.cornerRadius = 10
+    }
     
     public func setupKeyboardUI() {
         keyboardView.translatesAutoresizingMaskIntoConstraints = false

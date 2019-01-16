@@ -18,151 +18,78 @@
                         <rect key="frame" x="0.0" y="0.0" width="812" height="375"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="oYg-LD-zYY">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="oYg-LD-zYY">
                                 <rect key="frame" x="491" y="15" width="110" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.75636500630000003" green="0.11314525459999999" blue="0.0065348299179999996" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="45" id="Vd4-We-lsJ"/>
-                                    <constraint firstAttribute="width" secondItem="oYg-LD-zYY" secondAttribute="height" multiplier="22:9" id="nxH-OO-C2f"/>
-                                    <constraint firstAttribute="width" constant="110" id="rza-sP-7pm"/>
-                                </constraints>
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="20"/>
                                 <color key="tintColor" red="0.99999600649999998" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <state key="normal" title="RECORD"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.cornerRadius" value="10"/>
-                                </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="recButtonTouchedWithSender:" destination="SPW-ve-e62" eventType="touchUpInside" id="GfB-YM-2fv"/>
                                 </connections>
                             </button>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="00:00" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mLw-tD-7lO">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="00:00:00" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mLw-tD-7lO">
                                 <rect key="frame" x="274" y="15" width="147" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.65192019939422607" green="0.78048801422119141" blue="0.5305328369140625" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="45" id="Obn-UQ-IUz"/>
-                                    <constraint firstAttribute="width" secondItem="mLw-tD-7lO" secondAttribute="height" multiplier="49:15" id="dVB-tb-Yi7"/>
-                                </constraints>
                                 <edgeInsets key="layoutMargins" top="8" left="8" bottom="8" right="8"/>
-                                <fontDescription key="fontDescription" name="Helvetica" family="Helvetica" pointSize="35"/>
+                                <fontDescription key="fontDescription" name="Helvetica" family="Helvetica" pointSize="20"/>
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="10"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
                             </label>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Fze-BD-tqF">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Fze-BD-tqF">
                                 <rect key="frame" x="164" y="15" width="45" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.18006643650000001" green="0.64353942870000003" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="45" id="KNK-aW-IFs"/>
-                                    <constraint firstAttribute="height" constant="45" id="VWy-Cg-KI1"/>
-                                    <constraint firstAttribute="width" secondItem="Fze-BD-tqF" secondAttribute="height" multiplier="1:1" id="moZ-kv-VZU"/>
-                                </constraints>
                                 <state key="normal" image="downButton"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="22"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="downOctavePressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="Cdq-Kq-Sua"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" adjustsImageSizeForAccessibilityContentSizeCategory="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="vds-rL-Rwz">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" adjustsImageSizeForAccessibilityContentSizeCategory="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="vds-rL-Rwz">
                                 <rect key="frame" x="616" y="15" width="87" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.0" green="0.56284224989999998" blue="0.31881666180000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="87" id="7wu-f4-Ohc"/>
-                                    <constraint firstAttribute="height" constant="45" id="9Lo-eb-5xX"/>
-                                    <constraint firstAttribute="width" secondItem="vds-rL-Rwz" secondAttribute="height" multiplier="29:15" id="MB9-Og-WTk"/>
-                                </constraints>
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="20"/>
                                 <state key="normal" title="PLAY">
                                     <color key="titleColor" red="0.99999600649999998" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 </state>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.cornerRadius" value="10"/>
-                                </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="playButtonTouched:" destination="SPW-ve-e62" eventType="touchUpInside" id="oER-hW-c3M"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="EFf-rt-crU">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="EFf-rt-crU">
                                 <rect key="frame" x="431" y="15" width="45" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.18006643652915955" green="0.6435394287109375" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="45" id="MK1-HV-4x8"/>
-                                    <constraint firstAttribute="width" secondItem="EFf-rt-crU" secondAttribute="height" multiplier="1:1" id="PeH-5C-Go3"/>
-                                    <constraint firstAttribute="width" constant="45" id="sJe-mS-QaD"/>
-                                </constraints>
                                 <state key="normal" image="refresh">
                                     <color key="titleColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 </state>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.cornerRadius" value="8"/>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.borderWidth" value="1"/>
-                                </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="resetButtonTouchedWithSender:" destination="SPW-ve-e62" eventType="touchUpInside" id="496-Wg-Uee"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="XCM-ve-Pkj">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="XCM-ve-Pkj">
                                 <rect key="frame" x="109" y="15" width="45" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="45" id="eHV-1u-7i8"/>
-                                    <constraint firstAttribute="width" secondItem="XCM-ve-Pkj" secondAttribute="height" multiplier="1:1" id="ixI-Lc-HM1"/>
-                                    <constraint firstAttribute="width" constant="45" id="vmd-Wn-a3J"/>
-                                </constraints>
-                                <state key="normal" image="octaveImage"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.cornerRadius" value="8"/>
-                                    <userDefinedRuntimeAttribute type="string" keyPath="layer.borderWidth" value="1"/>
-                                </userDefinedRuntimeAttributes>
+                                <state key="normal" backgroundImage="octaveImage"/>
                                 <connections>
                                     <action selector="octaveCountPressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="cwa-RO-LaF"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="6rK-vj-Bby">
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="6rK-vj-Bby">
                                 <rect key="frame" x="219" y="15" width="45" height="45"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" red="0.18006643650000001" green="0.64353942870000003" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" secondItem="6rK-vj-Bby" secondAttribute="height" multiplier="1:1" id="1xU-ui-lmS"/>
-                                    <constraint firstAttribute="height" constant="45" id="AgW-Xb-KfZ"/>
-                                    <constraint firstAttribute="width" constant="45" id="I05-QG-Dy7"/>
-                                </constraints>
                                 <state key="normal" image="upButton"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="22"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="upOctavePress:" destination="SPW-ve-e62" eventType="touchUpInside" id="Oms-eY-v4x"/>
                                 </connections>
                             </button>
                         </subviews>
                         <color key="backgroundColor" white="0.66666666666666663" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                        <constraints>
-                            <constraint firstItem="XCM-ve-Pkj" firstAttribute="leading" secondItem="Von-3v-6aP" secondAttribute="leading" constant="65" id="3i7-Uy-8kM"/>
-                            <constraint firstItem="EFf-rt-crU" firstAttribute="leading" secondItem="mLw-tD-7lO" secondAttribute="trailing" constant="10" id="IEr-qB-nw2"/>
-                            <constraint firstItem="Von-3v-6aP" firstAttribute="trailing" secondItem="vds-rL-Rwz" secondAttribute="trailing" constant="65" id="Jed-kr-JuT"/>
-                            <constraint firstItem="XCM-ve-Pkj" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="MZW-6D-TPQ"/>
-                            <constraint firstItem="vds-rL-Rwz" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="NmV-nb-K0c"/>
-                            <constraint firstItem="Fze-BD-tqF" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="SpM-QH-2uu"/>
-                            <constraint firstItem="mLw-tD-7lO" firstAttribute="leading" secondItem="6rK-vj-Bby" secondAttribute="trailing" constant="10" id="TrX-Fm-tjo"/>
-                            <constraint firstItem="oYg-LD-zYY" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="XLa-td-1al"/>
-                            <constraint firstItem="Fze-BD-tqF" firstAttribute="leading" secondItem="XCM-ve-Pkj" secondAttribute="trailing" constant="10" id="e1i-RX-1zr"/>
-                            <constraint firstItem="EFf-rt-crU" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="iuE-tc-5nU"/>
-                            <constraint firstItem="6rK-vj-Bby" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="js9-Qb-PzD"/>
-                            <constraint firstItem="mLw-tD-7lO" firstAttribute="top" secondItem="Von-3v-6aP" secondAttribute="top" constant="15" id="oFS-t5-aka"/>
-                            <constraint firstItem="6rK-vj-Bby" firstAttribute="leading" secondItem="Fze-BD-tqF" secondAttribute="trailing" constant="10" id="oGO-SH-0kh"/>
-                            <constraint firstItem="oYg-LD-zYY" firstAttribute="leading" secondItem="EFf-rt-crU" secondAttribute="trailing" constant="15" id="wHr-mY-rJM"/>
-                            <constraint firstItem="vds-rL-Rwz" firstAttribute="leading" secondItem="oYg-LD-zYY" secondAttribute="trailing" constant="15" id="z9A-wZ-FL9"/>
-                        </constraints>
                         <viewLayoutGuide key="safeArea" id="Von-3v-6aP"/>
                     </view>
                     <connections>
