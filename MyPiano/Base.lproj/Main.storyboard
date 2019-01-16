@@ -21,10 +21,12 @@
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="oYg-LD-zYY">
                                 <rect key="frame" x="491" y="15" width="110" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <color key="backgroundColor" red="0.75636500630000003" green="0.11314525459999999" blue="0.0065348299179999996" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <color key="backgroundColor" red="0.83762293781725883" green="0.13980972237921782" blue="0.11787326138371626" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="20"/>
                                 <color key="tintColor" red="0.99999600649999998" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <state key="normal" title="RECORD"/>
+                                <state key="normal" title="RECORD">
+                                    <color key="titleColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                </state>
                                 <connections>
                                     <action selector="recButtonTouchedWithSender:" destination="SPW-ve-e62" eventType="touchUpInside" id="GfB-YM-2fv"/>
                                 </connections>
@@ -41,8 +43,7 @@
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Fze-BD-tqF">
                                 <rect key="frame" x="164" y="15" width="45" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <color key="backgroundColor" red="0.18006643650000001" green="0.64353942870000003" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <state key="normal" image="downButton"/>
+                                <state key="normal" image="minusRed"/>
                                 <connections>
                                     <action selector="downOctavePressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="Cdq-Kq-Sua"/>
                                 </connections>
@@ -62,8 +63,8 @@
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="EFf-rt-crU">
                                 <rect key="frame" x="431" y="15" width="45" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <color key="backgroundColor" red="0.18006643652915955" green="0.6435394287109375" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <state key="normal" image="refresh">
+                                <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                <state key="normal" backgroundImage="trashIcon">
                                     <color key="titleColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 </state>
                                 <connections>
@@ -82,8 +83,7 @@
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="6rK-vj-Bby">
                                 <rect key="frame" x="219" y="15" width="45" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <color key="backgroundColor" red="0.18006643650000001" green="0.64353942870000003" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <state key="normal" image="upButton"/>
+                                <state key="normal" image="plusGreen"/>
                                 <connections>
                                     <action selector="upOctavePress:" destination="SPW-ve-e62" eventType="touchUpInside" id="Oms-eY-v4x"/>
                                 </connections>
@@ -106,66 +106,11 @@
             </objects>
             <point key="canvasLocation" x="20.689655172413794" y="-170.40000000000001"/>
         </scene>
-        <!--Recordings-->
-        <scene sceneID="1lc-87-6n2">
-            <objects>
-                <viewController id="cb4-ut-fv3" customClass="Recordings" customModule="MyPiano" customModuleProvider="target" sceneMemberID="viewController">
-                    <view key="view" contentMode="scaleToFill" id="H8O-Cj-Fz5">
-                        <rect key="frame" x="0.0" y="0.0" width="812" height="375"/>
-                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <subviews>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="l6J-ug-KJC">
-                                <rect key="frame" x="692" y="20" width="66" height="30"/>
-                                <state key="normal" title="Keyboard"/>
-                                <connections>
-                                    <action selector="keyboardPagePressed:" destination="cb4-ut-fv3" eventType="touchUpInside" id="RPg-em-hwu"/>
-                                    <segue destination="SPW-ve-e62" kind="presentation" id="Djk-gn-EIz"/>
-                                </connections>
-                            </button>
-                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="b9w-WQ-Asz">
-                                <rect key="frame" x="0.0" y="70" width="812" height="305"/>
-                                <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                                <prototypes>
-                                    <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" selectionStyle="blue" hidesAccessoryWhenEditing="NO" indentationLevel="1" indentationWidth="0.0" reuseIdentifier="cell" id="hgs-N8-ZP9">
-                                        <rect key="frame" x="0.0" y="28" width="812" height="44"/>
-                                        <autoresizingMask key="autoresizingMask"/>
-                                        <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="hgs-N8-ZP9" id="B7n-ir-4Cr">
-                                            <rect key="frame" x="44" y="0.0" width="724" height="43.666666666666664"/>
-                                            <autoresizingMask key="autoresizingMask"/>
-                                        </tableViewCellContentView>
-                                    </tableViewCell>
-                                </prototypes>
-                                <connections>
-                                    <outlet property="dataSource" destination="cb4-ut-fv3" id="zby-fd-P2V"/>
-                                    <outlet property="delegate" destination="cb4-ut-fv3" id="pZB-1Y-Klb"/>
-                                </connections>
-                            </tableView>
-                        </subviews>
-                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                        <constraints>
-                            <constraint firstAttribute="bottom" secondItem="b9w-WQ-Asz" secondAttribute="bottom" id="PtS-Hh-iLj"/>
-                            <constraint firstItem="l6J-ug-KJC" firstAttribute="top" secondItem="H8O-Cj-Fz5" secondAttribute="top" constant="20" symbolic="YES" id="U9M-4B-RJ1"/>
-                            <constraint firstItem="b9w-WQ-Asz" firstAttribute="top" secondItem="l6J-ug-KJC" secondAttribute="bottom" constant="20" id="Wql-c4-2mv"/>
-                            <constraint firstItem="l6J-ug-KJC" firstAttribute="leading" secondItem="XDJ-vM-iFd" secondAttribute="leading" constant="648" id="XDU-uG-i9b"/>
-                            <constraint firstItem="b9w-WQ-Asz" firstAttribute="leading" secondItem="H8O-Cj-Fz5" secondAttribute="leading" id="tnG-hW-y6X"/>
-                            <constraint firstAttribute="trailing" secondItem="b9w-WQ-Asz" secondAttribute="trailing" id="zGI-Nr-0rA"/>
-                        </constraints>
-                        <viewLayoutGuide key="safeArea" id="XDJ-vM-iFd"/>
-                    </view>
-                    <connections>
-                        <outlet property="keyboardButton" destination="l6J-ug-KJC" id="q0a-6q-Wll"/>
-                        <outlet property="myTableView" destination="b9w-WQ-Asz" id="zj8-qv-bJ2"/>
-                    </connections>
-                </viewController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="a32-xR-63V" userLabel="First Responder" sceneMemberID="firstResponder"/>
-            </objects>
-            <point key="canvasLocation" x="20.689655172413794" y="573.60000000000002"/>
-        </scene>
     </scenes>
     <resources>
-        <image name="downButton" width="100" height="100"/>
+        <image name="minusRed" width="55.102039337158203" height="16.897958755493164"/>
         <image name="octaveImage" width="100" height="101"/>
-        <image name="refresh" width="100" height="100"/>
-        <image name="upButton" width="100" height="100"/>
+        <image name="plusGreen" width="53.632652282714844" height="53.632652282714844"/>
+        <image name="trashIcon" width="100" height="100"/>
     </resources>
 </document>

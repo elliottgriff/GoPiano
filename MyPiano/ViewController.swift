@@ -104,8 +104,6 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        view.backgroundColor = UIColor(patternImage: UIImage(named: "wood_background.png")!)
-        
         if keyboardView.octaveCount == 2 && keyboardView.firstOctave == 6 {
             keyboardView.firstOctave += -1
         }
@@ -360,54 +358,77 @@ class ViewController: UIViewController, AKKeyboardDelegate {
 //    }
     
     public func setupButtonsUI() {
-        playButton.translatesAutoresizingMaskIntoConstraints = false
-        playButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        playButton.leadingAnchor.constraint(lessThanOrEqualToSystemSpacingAfter: recButton.trailingAnchor, multiplier: 5).isActive = true
-        playButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.1).isActive = true
-        playButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
-        playButton.layer.cornerRadius = 10
-        
-        recButton.translatesAutoresizingMaskIntoConstraints = false
-        recButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        recButton.leadingAnchor.constraint(equalToSystemSpacingAfter: view.leadingAnchor, multiplier: 70).isActive = true
-        recButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.15).isActive = true
-        recButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
-        recButton.layer.cornerRadius = 10
+        let buttonContainerView = UIView()
+        buttonContainerView.translatesAutoresizingMaskIntoConstraints = false
+        buttonContainerView.backgroundColor = UIColor(patternImage: UIImage(named: "wood_background.png")!)
+        view.addSubview(buttonContainerView)
+        buttonContainerView.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
+        buttonContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
+        buttonContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
+        buttonContainerView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.20).isActive = true
+        buttonContainerView.addSubview(octaveCount)
+        buttonContainerView.addSubview(octaveDown)
+        buttonContainerView.addSubview(octaveUp)
+        buttonContainerView.addSubview(infoLabel)
+        buttonContainerView.addSubview(resetButton)
+        buttonContainerView.addSubview(recButton)
+        buttonContainerView.addSubview(playButton)
         
         octaveCount.translatesAutoresizingMaskIntoConstraints = false
-        octaveCount.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        octaveCount.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 5).isActive = true
-        octaveCount.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.1).isActive = true
-        octaveCount.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        octaveCount.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        octaveCount.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: buttonContainerView.leadingAnchor, multiplier: 5).isActive = true
+        octaveCount.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.1).isActive = true
+        octaveCount.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.8).isActive = true
         octaveCount.layer.cornerRadius = 10
         
-        octaveUp.translatesAutoresizingMaskIntoConstraints = false
-        octaveUp.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        octaveUp.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 27.5).isActive = true
-        octaveUp.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
-        octaveUp.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
-        octaveUp.layer.cornerRadius = 10
         
         octaveDown.translatesAutoresizingMaskIntoConstraints = false
-        octaveDown.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        octaveDown.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 17.5).isActive = true
-        octaveDown.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
-        octaveDown.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        octaveDown.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        octaveDown.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveCount.trailingAnchor, multiplier: 2.5).isActive = true
+        octaveDown.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
+        octaveDown.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
         octaveDown.layer.cornerRadius = 10
         
-        resetButton.translatesAutoresizingMaskIntoConstraints = false
-        resetButton.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        resetButton.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 57.5).isActive = true
-        resetButton.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.075).isActive = true
-        resetButton.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
-        resetButton.layer.cornerRadius = 10
+        
+        octaveUp.translatesAutoresizingMaskIntoConstraints = false
+        octaveUp.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        octaveUp.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveDown.trailingAnchor, multiplier: 2.5).isActive = true
+        octaveUp.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
+        octaveUp.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        octaveUp.layer.cornerRadius = 10
+        
         
         infoLabel.translatesAutoresizingMaskIntoConstraints = false
-        infoLabel.topAnchor.constraint(equalToSystemSpacingBelow: view.topAnchor, multiplier: 1).isActive = true
-        infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: view.leadingAnchor, multiplier: 37.5).isActive = true
-        infoLabel.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.175).isActive = true
-        infoLabel.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.15).isActive = true
+        infoLabel.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveUp.trailingAnchor, multiplier: 2.5).isActive = true
+        infoLabel.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.175).isActive = true
+        infoLabel.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
         infoLabel.layer.cornerRadius = 10
+        
+        
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
+        resetButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        resetButton.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: infoLabel.trailingAnchor, multiplier: 2.5).isActive = true
+        resetButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
+        resetButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        resetButton.layer.cornerRadius = 10
+        
+        
+        recButton.translatesAutoresizingMaskIntoConstraints = false
+        recButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        recButton.leadingAnchor.constraint(equalToSystemSpacingAfter: resetButton.trailingAnchor, multiplier: 2.5).isActive = true
+        recButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.15).isActive = true
+        recButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        recButton.layer.cornerRadius = 10
+        
+
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        playButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        playButton.leadingAnchor.constraint(lessThanOrEqualToSystemSpacingAfter: recButton.trailingAnchor, multiplier: 2.5).isActive = true
+        playButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.1).isActive = true
+        playButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        playButton.layer.cornerRadius = 10
+
     }
     
     public func setupKeyboardUI() {
