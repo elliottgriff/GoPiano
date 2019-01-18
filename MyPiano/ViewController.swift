@@ -9,8 +9,16 @@
 import UIKit
 import AudioKit
 import AudioKitUI
+import CoreBluetooth
 
-class ViewController: UIViewController, AKKeyboardDelegate {
+class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state == CBManagerState.poweredOn {
+            print("bluetooth enabled")
+            
+        }
+    }
+    
     
     var midiSample = AKMIDISampler()
     var recorder: AKNodeRecorder!
@@ -57,7 +65,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
 
         
         do {
-            try AKSettings.setSession(category: .playAndRecord)
+            try AKSettings.setSession(category: .playAndRecord, with: .allowBluetoothA2DP)
         } catch {
             print("error session")
         }
@@ -108,10 +116,16 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             keyboardView.firstOctave += -1
         }
         
+        
         loadSound()
         setupKeyboardUI()
         setupButtonsUI()
-        disablePlayButtons()
+        if recorder.audioFile?.duration == 0 {
+            playButton.isUserInteractionEnabled = false
+        } else {
+            playButton.isUserInteractionEnabled = true
+        }
+        
         if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
             numberOfRecordings = number
         }
@@ -130,8 +144,10 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         
         if keyboardView.octaveCount == 1 {
             keyboardView.octaveCount += 1
+            octaveCount.setBackgroundImage(#imageLiteral(resourceName: "2button"), for: .normal)
         } else if keyboardView.octaveCount == 2 {
             keyboardView.octaveCount += -1
+            octaveCount.setBackgroundImage(#imageLiteral(resourceName: "1button"), for: .normal)
         }
         viewDidLoad()
     }
@@ -159,13 +175,15 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         switch playState {
             case .readyToPlay :
                 player.play()
-                playButton.setTitle("STOP", for: .normal)
+//                playButton.setTitle("STOP", for: .normal)
+                playButton.setBackgroundImage(#imageLiteral(resourceName: "pauseIcon"), for: .normal)
                 playState = .playing
 
             
             case .playing :
                 player.stop()
-                playButton.setTitle("PLAY", for: .normal)
+//                playButton.setTitle("PLAY", for: .normal)
+                playButton.setBackgroundImage(#imageLiteral(resourceName: "playButtonBlue"), for: .normal)
                 playState = .readyToPlay
         }
     }
@@ -178,7 +196,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             time = 0
             timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(ViewController.action), userInfo: nil, repeats: true)
             
-            recButton.setTitle("STOP", for: .normal)
+//            recButton.setTitle("STOP", for: .normal)
             recState = .recording
             do {
                 try recorder.reset()
@@ -186,6 +204,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
             } catch {
                 AKLog("Error recording")
             }
+            recButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
             
 
         case .recording :
@@ -227,8 +246,14 @@ class ViewController: UIViewController, AKKeyboardDelegate {
 //
 //
 //            try! AudioKit.start()
-            playButton.setTitle("PLAY", for: .normal)
-            recButton.setTitle("RECORD", for: .normal)
+//            playButton.setTitle("PLAY", for: .normal)
+            playButton.setBackgroundImage(#imageLiteral(resourceName: "playButtonBlue"), for: .normal)
+            playButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
+            recButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
+            
+            
+//            recButton.setTitle("RECORD", for: .normal)
+//            recButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
             finishedRecording()
             }
     }
@@ -242,14 +267,18 @@ class ViewController: UIViewController, AKKeyboardDelegate {
                 try recorder.record()
             } else {
                 try recorder.reset()
+                recButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
             }
         } catch {
             print("error reseting while recording")
         }
 
         setupUIForPlaying()
-        playButton.isHighlighted = true
-        playButton.isEnabled = false
+//        playButton.isHighlighted = true
+//        playButton.isEnabled = false
+        playButton.isUserInteractionEnabled = false
+        playButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
+        playButton.setBackgroundImage(#imageLiteral(resourceName: "playButtonBlue"), for: .normal)
         time = 0
         infoLabel.text = "00:00:00"
         
@@ -302,8 +331,8 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     
     func finishedRecording() {
         recState = .readyToRecord
-        playButton.isEnabled = true
-        playButton.isHighlighted = false
+        playButton.isUserInteractionEnabled = true
+//        playButton.isHighlighted = false
         if player.isPlaying {
             print("already playing")
         } else {
@@ -312,7 +341,7 @@ class ViewController: UIViewController, AKKeyboardDelegate {
     }
     
     func setupUIForPlaying () {
-        playButton.setTitle("PLAY", for: .normal)
+//        playButton.setTitle("PLAY", for: .normal)
         playState = .readyToPlay
     }
     
@@ -377,9 +406,9 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         octaveCount.translatesAutoresizingMaskIntoConstraints = false
         octaveCount.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         octaveCount.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: buttonContainerView.leadingAnchor, multiplier: 5).isActive = true
-        octaveCount.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.1).isActive = true
-        octaveCount.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.8).isActive = true
-        octaveCount.layer.cornerRadius = 10
+        octaveCount.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.085).isActive = true
+        octaveCount.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.85).isActive = true
+//        octaveCount.layer.cornerRadius = 10
         
         
         octaveDown.translatesAutoresizingMaskIntoConstraints = false
@@ -403,31 +432,52 @@ class ViewController: UIViewController, AKKeyboardDelegate {
         infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveUp.trailingAnchor, multiplier: 2.5).isActive = true
         infoLabel.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.175).isActive = true
         infoLabel.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        infoLabel.layer.masksToBounds = true
         infoLabel.layer.cornerRadius = 10
+        infoLabel.layer.borderWidth = 4
+        infoLabel.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
         
         
         resetButton.translatesAutoresizingMaskIntoConstraints = false
         resetButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         resetButton.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: infoLabel.trailingAnchor, multiplier: 2.5).isActive = true
-        resetButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
-        resetButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
-        resetButton.layer.cornerRadius = 10
+        resetButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.0875).isActive = true
+        resetButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.875).isActive = true
+        resetButton.layer.masksToBounds = true
+//        resetButton.layer.cornerRadius = 5
+//        resetButton.layer.borderWidth = 4
+//        resetButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
         
         
         recButton.translatesAutoresizingMaskIntoConstraints = false
         recButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         recButton.leadingAnchor.constraint(equalToSystemSpacingAfter: resetButton.trailingAnchor, multiplier: 2.5).isActive = true
-        recButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.15).isActive = true
-        recButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
-        recButton.layer.cornerRadius = 10
+        recButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.085).isActive = true
+        recButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.85).isActive = true
+        recButton.layer.masksToBounds = true
+        recButton.layer.cornerRadius = 33
+        recButton.layer.borderWidth = 4
+        if recorder.isRecording {
+            recButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
+        } else {
+            recButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
+        }
+        
         
 
         playButton.translatesAutoresizingMaskIntoConstraints = false
         playButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         playButton.leadingAnchor.constraint(lessThanOrEqualToSystemSpacingAfter: recButton.trailingAnchor, multiplier: 2.5).isActive = true
-        playButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.1).isActive = true
-        playButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
-        playButton.layer.cornerRadius = 10
+        playButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.0875).isActive = true
+        playButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.875).isActive = true
+        playButton.layer.cornerRadius = 33
+        playButton.layer.borderWidth = 4
+        if recorder.audioFile?.duration == 0 {
+            playButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
+        } else {
+            playButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
+        }
+        
 
     }
     

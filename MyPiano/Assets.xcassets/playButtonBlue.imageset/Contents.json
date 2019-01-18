@@ -2,11 +2,11 @@
   "images" : [
     {
       "idiom" : "universal",
-      "filename" : "trashIcon.png",
       "scale" : "1x"
     },
     {
       "idiom" : "universal",
+      "filename" : "playButtonBlue.png",
       "scale" : "2x"
     },
     {
