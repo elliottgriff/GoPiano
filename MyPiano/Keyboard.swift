@@ -8,8 +8,7 @@
 
 import UIKit
 import AudioKit
-import
-AudioKitUI
+import AudioKitUI
 
 
 @IBDesignable public class Keyboard: UIView, AKMIDIListener {
@@ -38,10 +37,9 @@ AudioKitUI
     @IBInspectable open var  blackKeyOff: UIColor = #colorLiteral(red: 0.06666666667, green: 0.06666666667, blue: 0.06666666667, alpha: 1)
     
     /// Activated key color
-    @IBInspectable open var  keyOnUserColor: UIColor = #colorLiteral(red: 1, green: 0.7913168073, blue: 0.7851312757, alpha: 1)
+    @IBInspectable open var  keyOnUserColor: UIColor = #colorLiteral(red: 1, green: 0.8741565347, blue: 0.8645941615, alpha: 1)
     
-    var keyOnColor: UIColor = #colorLiteral(red: 1, green: 0.7913168073, blue: 0.7851312757, alpha: 1)
-    
+    var keyOnColor: UIColor = #colorLiteral(red: 1, green: 0.8741565347, blue: 0.8645941615, alpha: 1)
     
     
     /// Class to handle user actions
@@ -145,7 +143,8 @@ AudioKitUI
                                                                y: 0,
                                                                width: tempWidth,
                                                                height: oneOctaveSize.height))
-                UIColor.black.setFill()
+                UIColor.lightGray.setFill()
+//                UIColor.black.setFill()
                 backgroundPath.fill()
         
         
@@ -174,7 +173,8 @@ AudioKitUI
                                                        y: 0,
                                                        width: oneOctaveSize.width,
                                                        height: oneOctaveSize.height))
-        UIColor.black.setFill()
+        UIColor.lightGray.setFill()
+//        UIColor.black.setFill()
         backgroundPath.fill()
         
         var whiteKeysPaths = [UIBezierPath]()
@@ -208,7 +208,7 @@ AudioKitUI
     }
     
     func addLabels(i: Int, octaveNumber: Int, whiteKeysRect: CGRect) {
-        let textColor: UIColor =  #colorLiteral(red: 0.7540688515, green: 0.7540867925, blue: 0.7540771365, alpha: 1)
+        let textColor: UIColor =  #colorLiteral(red: 0.2549019754, green: 0.2745098174, blue: 0.3019607961, alpha: 1)
         
         //            // Add Labels
         let context = UIGraphicsGetCurrentContext()!
@@ -216,7 +216,7 @@ AudioKitUI
         let whiteKeysStyle = NSMutableParagraphStyle()
         whiteKeysStyle.alignment = .center
         let whiteKeysFontAttributes  = [
-            .font: UIFont(name: "Helvetica", size: 18)!,
+            .font: UIFont(name: "HelveticaNeue-UltraLight", size: 18)!,
             .foregroundColor: textColor,
             .paragraphStyle: whiteKeysStyle,
             ] as [NSAttributedString.Key: Any]
