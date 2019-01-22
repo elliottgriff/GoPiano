@@ -10,19 +10,16 @@
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
-        <!--View Controller-->
+        <!--LaunchScreen-->
         <scene sceneID="EHf-IW-A2E">
             <objects>
-                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                <viewController id="01J-lp-oVM" userLabel="LaunchScreen" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
                         <rect key="frame" x="0.0" y="0.0" width="667" height="375"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" tag="1" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="lightWood" translatesAutoresizingMaskIntoConstraints="NO" id="K0w-td-eok">
-                                <rect key="frame" x="0.0" y="0.0" width="667" height="375"/>
-                            </imageView>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="MyPiano" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="z0y-qo-lWL">
-                                <rect key="frame" x="10" y="30" width="647" height="315"/>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="GoPiano" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="z0y-qo-lWL">
+                                <rect key="frame" x="75.5" y="79" width="516" height="217"/>
                                 <fontDescription key="fontDescription" name="Futura-Bold" family="Futura" pointSize="80"/>
                                 <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <nil key="highlightedColor"/>
@@ -30,16 +27,12 @@
                                 <size key="shadowOffset" width="4" height="3"/>
                             </label>
                         </subviews>
-                        <color key="backgroundColor" red="0.26051741839999998" green="0.2605243921" blue="0.260520637" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" white="0.33333333333333331" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                         <constraints>
-                            <constraint firstItem="K0w-td-eok" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" id="5z6-0n-rQO"/>
-                            <constraint firstItem="z0y-qo-lWL" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="10" id="Fue-E2-gDw"/>
-                            <constraint firstItem="z0y-qo-lWL" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="30" id="HmV-4i-x46"/>
-                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="z0y-qo-lWL" secondAttribute="bottom" constant="30" id="Odk-T7-d4E"/>
-                            <constraint firstItem="K0w-td-eok" firstAttribute="trailing" secondItem="6Tk-OE-BBY" secondAttribute="trailing" id="YE2-Wi-R4g"/>
-                            <constraint firstItem="K0w-td-eok" firstAttribute="bottom" secondItem="6Tk-OE-BBY" secondAttribute="bottom" id="bTv-fg-gfK"/>
-                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="z0y-qo-lWL" secondAttribute="trailing" constant="10" id="ntJ-mb-Mx2"/>
-                            <constraint firstItem="K0w-td-eok" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" id="rS7-yq-pDe"/>
+                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="z0y-qo-lWL" secondAttribute="bottom" constant="79" id="2yj-E3-jKm"/>
+                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="z0y-qo-lWL" secondAttribute="trailing" constant="75.5" id="4dX-8t-vua"/>
+                            <constraint firstItem="z0y-qo-lWL" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="75.5" id="cc7-UB-J2b"/>
+                            <constraint firstItem="z0y-qo-lWL" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="79" id="xfr-02-24a"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                     </view>
@@ -49,7 +42,4 @@
             <point key="canvasLocation" x="52.623688155922046" y="373.60000000000002"/>
         </scene>
     </scenes>
-    <resources>
-        <image name="lightWood" width="199.67999267578125" height="62.400001525878906"/>
-    </resources>
 </document>
