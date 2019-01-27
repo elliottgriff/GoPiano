@@ -313,6 +313,8 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     
     func startScreenRecording() {
         
+        saveButton.setBackgroundImage(#imageLiteral(resourceName: "saveBlack"), for: .normal)
+        
         guard screenRecorder.isAvailable else {
             print("screen recording not available")
             return
@@ -332,6 +334,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     
     func stopScreenRecording() {
         
+        saveButton.setBackgroundImage(#imageLiteral(resourceName: "saveRed"), for: .normal)
         
         screenRecorder.stopRecording { [unowned self] (preview, error) in
             print("stopped screen recording")
@@ -489,14 +492,14 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         
         switchOctaveOutlet.translatesAutoresizingMaskIntoConstraints = false
         switchOctaveOutlet.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
-        switchOctaveOutlet.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: buttonContainerView.leadingAnchor, multiplier: 5).isActive = true
+        switchOctaveOutlet.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: buttonContainerView.leadingAnchor, multiplier: 4).isActive = true
         switchOctaveOutlet.layer.cornerRadius = 15
         switchOctaveOutlet.layer.borderWidth = 1
         switchOctaveOutlet.layer.borderColor = #colorLiteral(red: 0.6666666865, green: 0.6666666865, blue: 0.6666666865, alpha: 1)
         
         octaveDown.translatesAutoresizingMaskIntoConstraints = false
         octaveDown.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
-        octaveDown.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: switchOctaveOutlet.trailingAnchor, multiplier: 4).isActive = true
+        octaveDown.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: switchOctaveOutlet.trailingAnchor, multiplier: 2.5).isActive = true
         octaveDown.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.065).isActive = true
         octaveDown.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.65).isActive = true
         octaveDown.layer.cornerRadius = 15
@@ -524,6 +527,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         infoLabel.layer.cornerRadius = 10
         infoLabel.layer.borderWidth = 4
         infoLabel.layer.borderColor = #colorLiteral(red: 0.921431005, green: 0.9214526415, blue: 0.9214410186, alpha: 1)
+        infoLabel.adjustsFontSizeToFitWidth = true
         
         
         resetButton.translatesAutoresizingMaskIntoConstraints = false

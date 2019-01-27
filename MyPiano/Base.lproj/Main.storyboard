@@ -92,7 +92,7 @@
                                 <rect key="frame" x="702" y="15" width="46" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                                <state key="normal" title="Button"/>
+                                <state key="normal" backgroundImage="saveRed"/>
                                 <connections>
                                     <action selector="saveButtonPressed:" destination="SPW-ve-e62" eventType="touchUpInside" id="jDa-N4-A9z"/>
                                 </connections>
@@ -123,5 +123,6 @@
         <image name="plusRed" width="180" height="180"/>
         <image name="recordRed" width="180" height="180"/>
         <image name="refreshRed" width="180" height="180"/>
+        <image name="saveRed" width="180" height="180"/>
     </resources>
 </document>
