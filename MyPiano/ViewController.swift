@@ -14,12 +14,29 @@ import ReplayKit
 
 class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDelegate, CBPeripheralDelegate, RPPreviewViewControllerDelegate {
     
+    var centralManager : CBCentralManager?
+    
+    
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == CBManagerState.poweredOn {
+            central.scanForPeripherals(withServices: nil, options: nil)
             print("bluetooth enabled")
-            
+        } else {
+            print("blueooth is powered off")
         }
     }
+    
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        centralManager?.stopScan()
+        centralManager?.connect(peripheral, options: nil)
+    }
+    
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        peripheral.delegate = self
+        peripheral.discoverServices(nil)
+    }
+    
+    
     
     
     var midiSample = AKMIDISampler()
@@ -70,7 +87,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
 
         
         do {
-            try AKSettings.setSession(category: .playAndRecord, with: .allowBluetoothA2DP)
+            try AKSettings.setSession(category: .playAndRecord, with: .allowBluetooth)
         } catch {
             print("error session")
         }
@@ -116,6 +133,8 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        centralManager = CBCentralManager(delegate: self, queue: nil)
         
         if keyboardView.octaveCount == 2 && keyboardView.firstOctave == 6 {
             keyboardView.firstOctave += -1
