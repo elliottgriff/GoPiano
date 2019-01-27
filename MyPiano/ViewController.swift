@@ -10,8 +10,10 @@ import UIKit
 import AudioKit
 import AudioKitUI
 import CoreBluetooth
+import ReplayKit
 
-class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
+class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDelegate, CBPeripheralDelegate, RPPreviewViewControllerDelegate {
+    
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == CBManagerState.poweredOn {
             print("bluetooth enabled")
@@ -28,12 +30,13 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     var playingMix = AKMixer()
 //    var outputFile: AVAudioFile!
     var keyboardView = Keyboard(width: 1, height: 0, firstOctave: 3, octaveCount: 1)
-    var recordings: Recordings!
     var recState = RecordState.readyToRecord
     var playState = PlayState.readyToPlay
     var numberOfRecordings: Int = 0
     var timer = Timer()
     var time = 0
+    let screenRecorder = RPScreenRecorder.shared()
+        private var isRecording = false
     
     
     @IBOutlet private weak var infoLabel: UILabel!
@@ -42,8 +45,8 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     @IBOutlet private weak var playButton: UIButton!
     @IBOutlet private weak var octaveUp: UIButton!
     @IBOutlet private weak var octaveDown: UIButton!
-    @IBOutlet private weak var octaveCountOutlet: UIButton!
     @IBOutlet private weak var switchOctaveOutlet: UISwitch!
+    @IBOutlet private weak var saveButton: UIButton!
     
     
     override var prefersStatusBarHidden: Bool {
@@ -139,6 +142,17 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     
     //MARK:  Buttons
     
+    @IBAction func saveButtonPressed(_ sender: UIButton) {
+        
+        if !isRecording {
+            startScreenRecording()
+        } else {
+            stopScreenRecording()
+        }
+        
+    }
+    
+    
     @IBAction func octaveSwitchPressed(_ sender: UISwitch) {
         if keyboardView.octaveCount == 1 {
             keyboardView.octaveCount += 1
@@ -148,18 +162,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         viewDidLoad()
     }
     
-
-    @IBAction func octaveCountPressed(_ sender: UIButton) {
-        
-        if keyboardView.octaveCount == 1 {
-            keyboardView.octaveCount += 1
-            octaveCountOutlet.setBackgroundImage(#imageLiteral(resourceName: "2button"), for: .normal)
-        } else if keyboardView.octaveCount == 2 {
-            keyboardView.octaveCount += -1
-            octaveCountOutlet.setBackgroundImage(#imageLiteral(resourceName: "1button"), for: .normal)
-        }
-        viewDidLoad()
-    }
 
     @IBAction func upOctavePress(_ sender: UIButton) {
         if keyboardView.octaveCount == 2 && keyboardView.firstOctave == 5 {
@@ -309,6 +311,65 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         static let empty = ""
     }
     
+    func startScreenRecording() {
+        
+        guard screenRecorder.isAvailable else {
+            print("screen recording not available")
+            return
+        }
+        
+        screenRecorder.startRecording { [unowned self] (error) in
+            
+            guard error == nil else {
+                print("error starting screen recording")
+                return
+            }
+            
+            print("started screen recording successfully")
+            self.isRecording = true
+        }
+    }
+    
+    func stopScreenRecording() {
+        
+        
+        screenRecorder.stopRecording { [unowned self] (preview, error) in
+            print("stopped screen recording")
+            
+            guard preview != nil else {
+                print("preview controller not available")
+                return
+            }
+
+            let alert = UIAlertController(title: "Saving Finished", message: nil, preferredStyle: .alert)
+
+            let deleteAction = UIAlertAction(title: "Delete", style: .destructive, handler: { (UIAlertAction) in
+                self.screenRecorder.discardRecording(handler: {() -> Void in
+                    print("Screen Recording successfully deleted")
+                })
+            })
+            
+            let editAction = UIAlertAction(title: "Save", style: .default, handler: { (action: UIAlertAction) -> Void in
+                preview?.previewControllerDelegate = self
+                self.present(preview!, animated: true, completion: nil)
+            })
+
+
+            alert.addAction(editAction)
+            alert.addAction(deleteAction)
+            self.present(alert, animated: true, completion: nil)
+            
+            self.isRecording = false
+            
+        }
+    
+    }
+    
+    func previewControllerDidFinish(_ previewController: RPPreviewViewController) {
+        dismiss(animated: true)
+    }
+    
+    
     @objc func action() {
         let miliseconds = Int(time) % 100
         let seconds = Int(time) / 100 % 60
@@ -320,7 +381,11 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     
     
     func loadSound() {
-        try! midiSample.loadMelodicSoundFont("gpiano", preset: 0)
+        do {
+            try midiSample.loadMelodicSoundFont("gpiano", preset: 0)
+        } catch {
+            print("couldnt load soundFont")
+        }
     }
     
     public func noteOn(note: MIDINoteNumber) {
@@ -420,12 +485,11 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         buttonContainerView.addSubview(resetButton)
         buttonContainerView.addSubview(recButton)
         buttonContainerView.addSubview(playButton)
+        buttonContainerView.addSubview(saveButton)
         
         switchOctaveOutlet.translatesAutoresizingMaskIntoConstraints = false
         switchOctaveOutlet.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         switchOctaveOutlet.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: buttonContainerView.leadingAnchor, multiplier: 5).isActive = true
-//        switchOctaveOutlet.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.1).isActive = true
-//        switchOctaveOutlet.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.5).isActive = true
         switchOctaveOutlet.layer.cornerRadius = 15
         switchOctaveOutlet.layer.borderWidth = 1
         switchOctaveOutlet.layer.borderColor = #colorLiteral(red: 0.6666666865, green: 0.6666666865, blue: 0.6666666865, alpha: 1)
@@ -453,6 +517,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         infoLabel.translatesAutoresizingMaskIntoConstraints = false
         infoLabel.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveUp.trailingAnchor, multiplier: 2.5).isActive = true
+//        infoLabel.centerXAnchor.constraint(equalTo: buttonContainerView.centerXAnchor).isActive = true
         infoLabel.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.175).isActive = true
         infoLabel.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
         infoLabel.layer.masksToBounds = true
@@ -494,20 +559,27 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         playButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
         playButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
         playButton.layer.cornerRadius = 15
-//        playButton.layer.borderWidth = 4
         playButton.layer.borderWidth = 2
         playButton.layer.borderColor = #colorLiteral(red: 0.6666666865, green: 0.6666666865, blue: 0.6666666865, alpha: 1)
         if player.audioFile?.duration == 0 && recorder.isRecording {
             playButton.isUserInteractionEnabled = false
         } else if player.audioFile?.duration == 0 {
             playButton.isUserInteractionEnabled = false
-//            playButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
-//            playButton.backgroundColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
         } else {
             playButton.isUserInteractionEnabled = true
-//            playButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
-//            playButton.backgroundColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
+
         }
+        
+        saveButton.translatesAutoresizingMaskIntoConstraints = false
+        saveButton.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
+        saveButton.leadingAnchor.constraint(lessThanOrEqualToSystemSpacingAfter: playButton.trailingAnchor, multiplier: 2.5).isActive = true
+        saveButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
+        saveButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
+        saveButton.layer.cornerRadius = 15
+        saveButton.layer.borderWidth = 2
+        saveButton.layer.borderColor = #colorLiteral(red: 0.6666666865, green: 0.6666666865, blue: 0.6666666865, alpha: 1)
+        
+        
     }
     
     public func setupKeyboardUI() {
