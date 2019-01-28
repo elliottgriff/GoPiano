@@ -16,7 +16,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     
     var centralManager : CBCentralManager?
     
-    
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == CBManagerState.poweredOn {
             central.scanForPeripherals(withServices: nil, options: nil)
@@ -45,7 +44,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     var tape = try? AKAudioFile()
     var mix = AKMixer()
     var playingMix = AKMixer()
-//    var outputFile: AVAudioFile!
     var keyboardView = Keyboard(width: 1, height: 0, firstOctave: 3, octaveCount: 1)
     var recState = RecordState.readyToRecord
     var playState = PlayState.readyToPlay
@@ -80,11 +78,9 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         case playing
     }
     
-
+    
     required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
-        
-
         
         do {
             try AKSettings.setSession(category: .playAndRecord, with: .allowBluetooth)
@@ -134,22 +130,16 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        loadSound()
+        setupKeyboardUI()
+        setupButtonsUI()
+        
         centralManager = CBCentralManager(delegate: self, queue: nil)
         
         if keyboardView.octaveCount == 2 && keyboardView.firstOctave == 6 {
             keyboardView.firstOctave += -1
         }
         
-        
-        loadSound()
-        setupKeyboardUI()
-        setupButtonsUI()
-
-        
-        
-        if let number:Int = UserDefaults.standard.object(forKey: "myNumber") as? Int {
-            numberOfRecordings = number
-        }
     }
     
     
@@ -205,14 +195,12 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         switch playState {
             case .readyToPlay :
                 player.play()
-//                playButton.setTitle("STOP", for: .normal)
                 playButton.setBackgroundImage(#imageLiteral(resourceName: "pauseRed"), for: .normal)
                 playState = .playing
 
             
             case .playing :
                 player.stop()
-//                playButton.setTitle("PLAY", for: .normal)
                 playButton.setBackgroundImage(#imageLiteral(resourceName: "playRed"), for: .normal)
                 playState = .readyToPlay
         }
@@ -226,7 +214,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
             time = 0
             timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(ViewController.action), userInfo: nil, repeats: true)
             
-//            recButton.setTitle("STOP", for: .normal)
             recState = .recording
             do {
                 try recorder.reset()
@@ -235,7 +222,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
                 AKLog("Error recording")
             }
             recButton.setBackgroundImage(#imageLiteral(resourceName: "stopRed"), for: .normal)
-//            recButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
             
 
         case .recording :
@@ -261,31 +247,8 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
                     }
             
             
-            
-//            numberOfRecordings += 1
-            
-//            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("recorded.caf")
-//            let format = AVAudioFormat(commonFormat: .pcmFormatFloat64, sampleRate: 44100, channels: 2, interleaved: false)!
-            
-//            let fileName = getDirectory().appendingPathComponent("\(numberOfRecordings).caf")
-//            let settings = [AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 12000, AVNumberOfChannelsKey: 1, AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue]
-//            outputFile = try! AVAudioFile(forWriting: fileName, settings: settings)
-//
-//            let fileTape = try! AKAudioFile(forWriting: fileName, settings: settings)
-//            try! AudioKit.renderToFile(fileTape, duration: Double((player.audioFile!.duration)))
-//            try! AudioKit.renderToFile(fileTape, duration: Double((player.audioFile!.duration)))
-//
-//
-//            try! AudioKit.start()
-//            playButton.setTitle("PLAY", for: .normal)
             playButton.setBackgroundImage(#imageLiteral(resourceName: "playRed"), for: .normal)
             recButton.setBackgroundImage(#imageLiteral(resourceName: "recordRed"), for: .normal)
-//            playButton.layer.borderColor = #colorLiteral(red: 0.2745098174, green: 0.4862745106, blue: 0.1411764771, alpha: 1)
-//            recButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
-            
-            
-//            recButton.setTitle("RECORD", for: .normal)
-//            recButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
             finishedRecording()
             }
     }
@@ -302,22 +265,10 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
             print("error resetting")
         }
         finishedRecording()
-//        do {
-//            if recorder.isRecording {
-//                try recorder.reset()
-//                try recorder.record()
-//            } else {
-//                try recorder.reset()
-//                recButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
-//            }
-//        } catch {
-//            print("error reseting while recording")
-//        }
         player.load(audioFile: recorder.audioFile!)
 
         setupUIForPlaying()
         playButton.isUserInteractionEnabled = false
-//        playButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
         recButton.setBackgroundImage(#imageLiteral(resourceName: "recordRed"), for: .normal)
         playButton.setBackgroundImage(#imageLiteral(resourceName: "playRed"), for: .normal)
         time = 0
@@ -331,8 +282,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
     }
     
     func startScreenRecording() {
-        
-        saveButton.setBackgroundImage(#imageLiteral(resourceName: "saveBlack"), for: .normal)
         
         guard screenRecorder.isAvailable else {
             print("screen recording not available")
@@ -348,7 +297,12 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
             
             print("started screen recording successfully")
             self.isRecording = true
+            DispatchQueue.main.async {
+            self.saveButton.setBackgroundImage(#imageLiteral(resourceName: "saveBlack"), for: .normal)
+            }
         }
+        
+        
     }
     
     func stopScreenRecording() {
@@ -375,7 +329,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
                 preview?.previewControllerDelegate = self
                 self.present(preview!, animated: true, completion: nil)
             })
-
 
             alert.addAction(editAction)
             alert.addAction(deleteAction)
@@ -426,16 +379,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         }
     }
     
-    
-    func disablePlayButtons () {
-        if player.audioFile?.duration == 0 {
-            playButton.isHighlighted = true
-            playButton.isEnabled = false
-        } else {
-            print("won't disable Play button, there is a File to play")
-        }
-    }
-    
     func finishedRecording() {
         recState = .readyToRecord
         playButton.isUserInteractionEnabled = true
@@ -450,46 +393,7 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         playState = .readyToPlay
     }
     
-    //Get Directory Path
-    func getDirectory() -> URL {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let documentDirectory = paths[0]
-        return documentDirectory
-    }
-
-//    //Display Alerts
-    func displayAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "dismiss", style: .default, handler: nil))
-        present(alert, animated: true, completion: nil)
-    }
     
-//    func saveFile() {
-//        let shit = Recordings()
-//
-//
-//        AudioKit.output = mix
-//        do {
-//            try AudioKit.start()
-//        } catch {
-//            print("error starting in saveFile")
-//        }
-//        shit.numberOfRecordings += 1
-//        let fileName = getDirectory().appendingPathComponent("\(shit.numberOfRecordings).caf")
-//        let settings = [AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 12000, AVNumberOfChannelsKey: 1, AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue]
-//
-//        //            start recording
-//
-//        outputFile = try! AVAudioFile(forWriting: fileName, settings: settings)
-//        do {
-//            try AudioKit.renderToFile(outputFile, duration: self.player.duration)
-//            try AudioKit.renderToFile(outputFile, duration: self.player.duration)
-//        } catch {
-//            print("nothing to render")
-//        }
-//
-//        UserDefaults.standard.set(shit.numberOfRecordings, forKey: "myNumber")
-//    }
     
     public func setupButtonsUI() {
         let buttonContainerView = UIView()
@@ -539,7 +443,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         infoLabel.translatesAutoresizingMaskIntoConstraints = false
         infoLabel.centerYAnchor.constraint(equalTo: buttonContainerView.centerYAnchor).isActive = true
         infoLabel.leadingAnchor.constraint(greaterThanOrEqualToSystemSpacingAfter: octaveUp.trailingAnchor, multiplier: 2.5).isActive = true
-//        infoLabel.centerXAnchor.constraint(equalTo: buttonContainerView.centerXAnchor).isActive = true
         infoLabel.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.175).isActive = true
         infoLabel.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
         infoLabel.layer.masksToBounds = true
@@ -565,15 +468,9 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         recButton.leadingAnchor.constraint(equalToSystemSpacingAfter: resetButton.trailingAnchor, multiplier: 2.5).isActive = true
         recButton.widthAnchor.constraint(equalTo: buttonContainerView.widthAnchor, multiplier: 0.075).isActive = true
         recButton.heightAnchor.constraint(equalTo: buttonContainerView.heightAnchor, multiplier: 0.75).isActive = true
-//        recButton.layer.masksToBounds = true
         recButton.layer.cornerRadius = 15
         recButton.layer.borderWidth = 2
         recButton.layer.borderColor = #colorLiteral(red: 0.6666666865, green: 0.6666666865, blue: 0.6666666865, alpha: 1)
-//        if recorder.isRecording {
-//            recButton.layer.borderColor = #colorLiteral(red: 0.5807225108, green: 0.066734083, blue: 0, alpha: 1)
-//        } else {
-//            recButton.layer.borderColor = #colorLiteral(red: 0, green: 0, blue: 0, alpha: 1)
-//        }
         
         
         playButton.translatesAutoresizingMaskIntoConstraints = false
