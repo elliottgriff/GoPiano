@@ -9,34 +9,9 @@
 import UIKit
 import AudioKit
 import AudioKitUI
-import CoreBluetooth
 import ReplayKit
 
-class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDelegate, CBPeripheralDelegate, RPPreviewViewControllerDelegate {
-    
-    var centralManager : CBCentralManager?
-    
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == CBManagerState.poweredOn {
-            central.scanForPeripherals(withServices: nil, options: nil)
-            print("bluetooth enabled")
-        } else {
-            print("blueooth is powered off")
-        }
-    }
-    
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        centralManager?.stopScan()
-        centralManager?.connect(peripheral, options: nil)
-    }
-    
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        peripheral.delegate = self
-        peripheral.discoverServices(nil)
-    }
-    
-    
-    
+class ViewController: UIViewController, AKKeyboardDelegate, RPPreviewViewControllerDelegate {
     
     var midiSample = AKMIDISampler()
     var recorder: AKNodeRecorder!
@@ -83,11 +58,12 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         super.init(coder: aDecoder)
         
         do {
-            try AKSettings.setSession(category: .playAndRecord, with: .allowBluetooth)
+            try AKSettings.setSession(category: .playAndRecord)
         } catch {
             print("error session")
         }
         
+        AKSettings.bluetoothOptions = .allowBluetoothA2DP
         AKSettings.defaultToSpeaker = true
         AKSettings.audioInputEnabled = true
         
@@ -133,8 +109,6 @@ class ViewController: UIViewController, AKKeyboardDelegate, CBCentralManagerDele
         loadSound()
         setupKeyboardUI()
         setupButtonsUI()
-        
-        centralManager = CBCentralManager(delegate: self, queue: nil)
         
         if keyboardView.octaveCount == 2 && keyboardView.firstOctave == 6 {
             keyboardView.firstOctave += -1
