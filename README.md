@@ -1,7 +1,8 @@
 # GoPiano
 
 A playable multi-touch piano for iPhone and iPad: hold down chords, slide between
-keys, record what you play, and keep or share the result.
+keys, record what you play, then watch it back on the keyboard or share it as a
+video with the keys lighting up.
 
 <img width=455 src="https://user-images.githubusercontent.com/34309823/54627395-b6b69d80-4a49-11e9-973a-0c63cdde9e3a.PNG">
 <img width=455 src="https://user-images.githubusercontent.com/34309823/54627396-b74f3400-4a49-11e9-892f-b3bc8b180982.PNG">
@@ -39,9 +40,38 @@ commented at the call site in `Conductor.start()`:
    copies envelope settings across from the current sampler, and writes made
    straight after it are rejected.
 
+Two more things worth knowing about the sampler:
+
+- The first MIDI event costs the best part of a second in lazy setup. That is
+  spent at launch with a note-off, or it lands on the first key the player
+  touches - delaying the sound, and the note written into a take with it.
+- Do not call `silence()`. It calls `stopAllVoices()`, which sets a flag that
+  only `restartVoices()` clears, so the sampler goes quiet permanently.
+
+Touches are tracked by a `UIGestureRecognizer` rather than a `UIView`'s own
+touch methods, because raw view touches get cancelled when an ancestor
+recognizer claims the sequence.
+
 Each sample also declares its own key range. The key map matches a note against
 every sample whose range contains it and takes the first hit, so leaving the
 ranges wide open makes one sample answer for the whole keyboard.
+
+## Replay and video
+
+Recording a take captures the notes as well as the audio: one span per note held
+down, in `MelodyScore`. Tapping a melody plays it on the keyboard with the keys
+lighting up, and **Share Video** renders it as an MP4 - the keyboard drawn frame
+by frame from those spans, muxed with the melody's own audio.
+
+Nothing is screen-captured, so an exported video has no status bar, no fingers
+and no UI chrome. It is also framed to the notes that were actually played
+rather than to whatever the octave controls happened to be set to.
+
+`KeyboardRenderer` is the single drawing routine behind both the live keyboard
+and the video, so the two cannot drift apart.
+
+Melodies saved before this existed have no score: they still play and share as
+audio, and **Share Video** is simply unavailable for them.
 
 ## Saving and sharing
 

@@ -40,21 +40,52 @@ final class RecordingStore {
 
     let directory: URL
 
+    /// Scores live in a dot-directory so the Files app shows melodies only.
+    private let scoreDirectory: URL
+
     private init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         directory = documents.appendingPathComponent("Recordings", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        scoreDirectory = documents.appendingPathComponent(".melody-scores", isDirectory: true)
+        for url in [directory, scoreDirectory] {
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
     }
 
     // MARK: - Saving
 
     /// Converts the take at `source` into the library under `name`.
     @discardableResult
-    func save(copying source: URL, named name: String) throws -> Recording {
+    func save(copying source: URL, named name: String, score: MelodyScore) throws -> Recording {
         let destination = availableURL(for: name)
         try export(from: source, to: destination)
+        write(score, for: destination)
         let created = (try? destination.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
         return Recording(url: destination, created: created, duration: duration(of: destination))
+    }
+
+    // MARK: - Scores
+
+    /// The notes played in a melody, if they were captured with it. Melodies
+    /// saved before scores existed simply have none.
+    func score(for recording: Recording) -> MelodyScore? {
+        guard let data = try? Data(contentsOf: scoreURL(for: recording.url)) else { return nil }
+        return try? JSONDecoder().decode(MelodyScore.self, from: data)
+    }
+
+    func hasScore(for recording: Recording) -> Bool {
+        FileManager.default.fileExists(atPath: scoreURL(for: recording.url).path)
+    }
+
+    private func write(_ score: MelodyScore, for melody: URL) {
+        guard !score.isEmpty, let data = try? JSONEncoder().encode(score) else { return }
+        try? data.write(to: scoreURL(for: melody))
+    }
+
+    private func scoreURL(for melody: URL) -> URL {
+        scoreDirectory
+            .appendingPathComponent(melody.deletingPathExtension().lastPathComponent)
+            .appendingPathExtension("json")
     }
 
     private func export(from source: URL, to destination: URL) throws {
@@ -98,6 +129,7 @@ final class RecordingStore {
 
     func delete(_ recording: Recording) {
         try? FileManager.default.removeItem(at: recording.url)
+        try? FileManager.default.removeItem(at: scoreURL(for: recording.url))
     }
 
     /// Renames a take, keeping its extension. Returns the moved recording.
@@ -108,6 +140,9 @@ final class RecordingStore {
         let destination = availableURL(for: trimmed,
                                        pathExtension: recording.url.pathExtension)
         try FileManager.default.moveItem(at: recording.url, to: destination)
+        // Keep the score alongside its melody.
+        try? FileManager.default.moveItem(at: scoreURL(for: recording.url),
+                                          to: scoreURL(for: destination))
         return Recording(url: destination, created: recording.created, duration: recording.duration)
     }
 
