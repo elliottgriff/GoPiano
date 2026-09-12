@@ -16,6 +16,9 @@ struct ContentView: View {
     @State private var elapsed: TimeInterval = 0
     @State private var showRecordings = false
     @State private var saveConfirmation: String?
+    @State private var isNamingTake = false
+    @State private var takeName = ""
+    @State private var saveError: String?
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -34,6 +37,20 @@ struct ContentView: View {
         .ignoresSafeArea(.all, edges: .bottom)
         .overlay(alignment: .top) { startupError }
         .sheet(isPresented: $showRecordings) { RecordingsView() }
+        .alert("Save Melody", isPresented: $isNamingTake) {
+            TextField("Name", text: $takeName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { save(as: takeName) }
+        } message: {
+            Text("Saved melodies appear in the Files app and can be shared.")
+        }
+        .alert("Couldn't Save",
+               isPresented: Binding(get: { saveError != nil },
+                                    set: { if !$0 { saveError = nil } })) {
+            Button("OK", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
         .onAppear {
             conductor.start()
             clampOctave()
@@ -92,7 +109,8 @@ struct ContentView: View {
             .accessibilityLabel(conductor.isPlaying ? "Pause playback" : "Play recording")
 
             circleButton("square.and.arrow.down", enabled: conductor.hasRecording && !conductor.isRecording) {
-                save()
+                takeName = RecordingStore.shared.suggestedName()
+                isNamingTake = true
             }
             .accessibilityLabel("Save recording")
 
@@ -152,12 +170,12 @@ struct ContentView: View {
         firstOctave = min(max(0, firstOctave), maxFirstOctave)
     }
 
-    private func save() {
-        let name = RecordingStore.shared.suggestedName()
-        if conductor.saveRecording(named: name) != nil {
+    private func save(as name: String) {
+        do {
+            _ = try conductor.saveRecording(named: name)
             flash("Saved")
-        } else {
-            flash("Save failed")
+        } catch {
+            saveError = error.localizedDescription
         }
     }
 
