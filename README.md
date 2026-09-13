@@ -1,7 +1,7 @@
 # GoPiano
 
 A playable multi-touch piano for iPhone and iPad: hold down chords, slide between
-keys, record what you play and keep the takes.
+keys, record what you play, and keep or share the result.
 
 <img width=455 src="https://user-images.githubusercontent.com/34309823/54627395-b6b69d80-4a49-11e9-973a-0c63cdde9e3a.PNG">
 <img width=455 src="https://user-images.githubusercontent.com/34309823/54627396-b74f3400-4a49-11e9-892f-b3bc8b180982.PNG">
@@ -42,6 +42,16 @@ commented at the call site in `Conductor.start()`:
 Each sample also declares its own key range. The key map matches a note against
 every sample whose range contains it and takes the first hit, so leaving the
 ranges wide open makes one sample answer for the whole keyboard.
+
+## Saving and sharing
+
+Saved melodies are encoded to AAC in an `.m4a` container and kept in the app's
+Documents folder. They survive relaunches, show up in the Files app under
+GoPiano, and go straight to the share sheet from the melody list.
+
+The recorder itself writes uncompressed float CAF, which runs to roughly 20 MB a
+minute and which plenty of apps refuse to open, so saving converts. A minute of
+playing lands around 1 MB.
 
 ## Sound
 

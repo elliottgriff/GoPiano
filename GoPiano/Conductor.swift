@@ -184,7 +184,8 @@ final class Conductor {
 
     private func startRecording() {
         guard let recorder else { return }
-        player.stop()
+        // No point stopping a player that was never scheduled.
+        if player.isPlaying { player.stop() }
         do {
             try recorder.reset()
             try recorder.record()
@@ -230,18 +231,11 @@ final class Conductor {
         transport = .idle
     }
 
-    /// Saves the current take into Documents so it outlives the session.
-    @discardableResult
-    func saveRecording(named name: String) -> URL? {
-        guard let source = recorder?.audioFile?.url else { return nil }
-        let destination = RecordingStore.shared.newFileURL(named: name,
-                                                           pathExtension: source.pathExtension)
-        do {
-            try FileManager.default.copyItem(at: source, to: destination)
-            return destination
-        } catch {
-            Log("Could not save recording: \(error)")
-            return nil
+    /// Encodes the current take into the recordings library.
+    func saveRecording(named name: String) throws -> Recording {
+        guard let source = recorder?.audioFile?.url, hasRecording else {
+            throw RecordingStoreError.noTake
         }
+        return try RecordingStore.shared.save(copying: source, named: name)
     }
 }
