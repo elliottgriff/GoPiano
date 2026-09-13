@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Xcode has no INFOPLIST_KEY_ build setting for this one, and setting it
+	     as INFOPLIST_KEY_UIFileSharingEnabled is silently dropped. Without it
+	     saved melodies never show up in the Files app. The rest of the keys are
+	     still generated from build settings and merged into this file. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+</dict>
+</plist>
