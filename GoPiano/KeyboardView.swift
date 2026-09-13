@@ -50,18 +50,35 @@ struct KeyboardView: View {
                     handle(points: points, layout: layout)
                 }
             }
+            .accessibilityRepresentation {
+                // The drawn keyboard is invisible to VoiceOver, so stand in a
+                // row of buttons it can move through and play.
+                HStack(spacing: 0) {
+                    ForEach(layout.allKeys.sorted { $0.note < $1.note }) { key in
+                        Button(PianoLayout.name(for: key.note)) {
+                            conductor.tapNote(key.note)
+                        }
+                    }
+                }
+            }
             .onChange(of: firstOctave) { conductor.allNotesOff() }
             .onChange(of: octaveCount) { conductor.allNotesOff() }
         }
     }
 
     private func handle(points: [CGPoint], layout: PianoLayout) {
-        let notes = Set(points.compactMap { layout.note(at: $0) })
+        var velocities: [UInt8: UInt8] = [:]
+        for point in points {
+            guard let key = layout.key(at: point) else { continue }
+            velocities[key.note] = PianoLayout.velocity(for: point, on: key)
+        }
+        let notes = Set(velocities.keys)
+
         for note in conductor.activeNotes.subtracting(notes) {
             conductor.noteOff(note)
         }
         for note in notes.subtracting(conductor.activeNotes) {
-            conductor.noteOn(note)
+            conductor.noteOn(note, velocity: velocities[note] ?? 100)
         }
     }
 }

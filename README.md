@@ -40,6 +40,11 @@ commented at the call site in `Conductor.start()`:
    copies envelope settings across from the current sampler, and writes made
    straight after it are rejected.
 
+The engine is restarted, and the instrument handed over again, whenever the
+audio session is interrupted or the route changes. A call or a pulled headphone
+jack stops the engine, and a new route can mean a new sample rate - which the
+sampler has to be told about, or every note comes out at the wrong pitch.
+
 Two more things worth knowing about the sampler:
 
 - The first MIDI event costs the best part of a second in lazy setup. That is
@@ -99,6 +104,18 @@ GoPiano, and go straight to the share sheet from the melody list.
 The recorder itself writes uncompressed float CAF, which runs to roughly 20 MB a
 minute and which plenty of apps refuse to open, so saving converts. A minute of
 playing lands around 1 MB.
+
+## Playing
+
+How hard a note sounds comes from where the key is struck: towards the player is
+louder. Real velocity needs pressure the screen cannot measure and touch area is
+too noisy to play with, but position is predictable and works on every device.
+
+The octave controls stop at the top of the sampled range. Past it there is
+nothing left to play but the topmost sample stretched upwards, which sounds
+thin, so the buttons simply do not go there.
+
+VoiceOver gets a row of buttons standing in for the drawn keys, one per note.
 
 ## Sound
 
