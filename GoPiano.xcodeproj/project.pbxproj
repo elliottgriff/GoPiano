@@ -20,6 +20,9 @@
 		A10000000000000000000016 /* Samples in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* Samples */; };
 		A1000000000000000000002B /* AudioKit in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000029 /* AudioKit */; };
 		A1000000000000000000002C /* DunneAudioKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000002A /* DunneAudioKit */; };
+		A1000000000000000000002E /* MelodyScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* MelodyScore.swift */; };
+		A10000000000000000000030 /* KeyboardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* KeyboardRenderer.swift */; };
+		A10000000000000000000032 /* MelodyVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000031 /* MelodyVideoExporter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +38,9 @@
 		A10000000000000000000009 /* RecordingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsView.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000014 /* Samples */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Samples; sourceTree = "<group>"; };
+		A1000000000000000000002D /* MelodyScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelodyScore.swift; sourceTree = "<group>"; };
+		A1000000000000000000002F /* KeyboardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRenderer.swift; sourceTree = "<group>"; };
+		A10000000000000000000031 /* MelodyVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelodyVideoExporter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +77,9 @@
 				A10000000000000000000007 /* SampleMap.swift */,
 				A10000000000000000000008 /* RecordingStore.swift */,
 				A10000000000000000000009 /* RecordingsView.swift */,
+				A1000000000000000000002D /* MelodyScore.swift */,
+				A1000000000000000000002F /* KeyboardRenderer.swift */,
+				A10000000000000000000031 /* MelodyVideoExporter.swift */,
 				A10000000000000000000013 /* Assets.xcassets */,
 				A10000000000000000000014 /* Samples */,
 			);
@@ -179,6 +188,9 @@
 				A10000000000000000000010 /* SampleMap.swift in Sources */,
 				A10000000000000000000011 /* RecordingStore.swift in Sources */,
 				A10000000000000000000012 /* RecordingsView.swift in Sources */,
+				A1000000000000000000002E /* MelodyScore.swift in Sources */,
+				A10000000000000000000030 /* KeyboardRenderer.swift in Sources */,
+				A10000000000000000000032 /* MelodyVideoExporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
