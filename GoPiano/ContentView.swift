@@ -23,8 +23,12 @@ struct ContentView: View {
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
-    /// One octave can start anywhere; two need room for the second.
-    private var maxFirstOctave: Int { octaveCount == 2 ? 5 : 6 }
+    /// Stop short of the two octaves above the sampled range, which were just
+    /// the topmost sample stretched upwards and sounded thin for it.
+    private var maxFirstOctave: Int {
+        let highestOctave = (SampleMap.highestSampledNote - baseMIDINote - 11) / 12
+        return max(0, highestOctave - (octaveCount - 1))
+    }
 
     var body: some View {
         VStack(spacing: 0) {

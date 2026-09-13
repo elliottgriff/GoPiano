@@ -57,6 +57,11 @@ final class Conductor {
 
     // MARK: - What was played
 
+    /// Kept so the instrument can be handed back after the engine restarts:
+    /// `update(data:)` re-inits the core sampler at whatever rate the DSP knows,
+    /// which is how it picks up a new hardware sample rate.
+    private var loadedSamples: SamplerData?
+
     private var scoreRecorder = ScoreRecorder()
     private var recordingStart: TimeInterval = 0
     /// The score matching whatever the player currently holds.
@@ -82,6 +87,7 @@ final class Conductor {
     func start() {
         guard !isInstrumentLoaded, startupError == nil else { return }
         do {
+            removeOrphanedTakes()
             try configureSession()
             // The engine must be running before the instrument is handed over:
             // the sampler's DSP only learns the real hardware sample rate when
@@ -102,6 +108,7 @@ final class Conductor {
 
             loadInstrument()
             recorder = try NodeRecorder(node: reverb)
+            observeAudioSession()
         } catch {
             startupError = error.localizedDescription
             Log("Audio start failed: \(error)")
@@ -113,6 +120,69 @@ final class Conductor {
         player.stop()
         engine.stop()
         isInstrumentLoaded = false
+    }
+
+    // MARK: - Surviving interruptions
+
+    /// A call, an alarm, or headphones being pulled stops the engine. Nothing
+    /// restarted it, so the app went silent until it was relaunched.
+    private func observeAudioSession() {
+        let centre = NotificationCenter.default
+        #if os(iOS)
+        centre.addObserver(forName: AVAudioSession.interruptionNotification,
+                           object: nil, queue: .main) { [weak self] note in
+            guard let self,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            switch type {
+            case .began:
+                MainActor.assumeIsolated { self.handleInterruptionBegan() }
+            case .ended:
+                let options = (note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt)
+                    .map(AVAudioSession.InterruptionOptions.init(rawValue:)) ?? []
+                if options.contains(.shouldResume) {
+                    MainActor.assumeIsolated { self.resumeAudio() }
+                }
+            @unknown default:
+                break
+            }
+        }
+
+        // A new route can mean a new sample rate, which the sampler has to be
+        // told about or every note comes out at the wrong pitch.
+        centre.addObserver(forName: AVAudioSession.routeChangeNotification,
+                           object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            MainActor.assumeIsolated { self.resumeAudio() }
+        }
+
+        centre.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                           object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            MainActor.assumeIsolated { self.resumeAudio() }
+        }
+        #endif
+    }
+
+    private func handleInterruptionBegan() {
+        allNotesOff()
+        player.stop()
+        stopReplay()
+        transport = .idle
+    }
+
+    /// Brings the engine back and hands the instrument over again, so a changed
+    /// sample rate is picked up rather than silently detuning everything.
+    func resumeAudio() {
+        guard isInstrumentLoaded else { return }
+        guard !engine.avEngine.isRunning else { return }
+        do {
+            try configureSession()
+            try engine.start()
+            if let loadedSamples { sampler.update(data: loadedSamples) }
+        } catch {
+            Log("Could not resume audio: \(error)")
+        }
     }
 
     private func configureSession() throws {
@@ -172,6 +242,7 @@ final class Conductor {
         // buildKeyMap() works through the underlying C sampler, not the struct.
         let data = SamplerData(filesWithSampleDescriptors: descriptors)
         data.buildKeyMap()
+        loadedSamples = data
         sampler.update(data: data)
 
         // The first MIDI event through the sampler costs the best part of a
@@ -189,11 +260,11 @@ final class Conductor {
 
     // MARK: - Playing
 
-    func noteOn(_ note: UInt8) {
+    func noteOn(_ note: UInt8, velocity: UInt8 = 100) {
         guard isInstrumentLoaded, !activeNotes.contains(note) else { return }
         let at = now - recordingStart
         activeNotes.insert(note)
-        sampler.play(noteNumber: note, velocity: 100)
+        sampler.play(noteNumber: note, velocity: velocity)
         if isRecording { scoreRecorder.noteOn(note, at: at) }
     }
 
@@ -217,6 +288,16 @@ final class Conductor {
         sampler.sustainPedal(pedalDown: on)
     }
 
+    /// Plays a note and releases it shortly after. VoiceOver activates a key
+    /// rather than holding it, so there is no touch-up to wait for.
+    func tapNote(_ note: UInt8) {
+        noteOn(note)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            noteOff(note)
+        }
+    }
+
     func allNotesOff() {
         let held = activeNotes
         for note in held {
@@ -237,6 +318,9 @@ final class Conductor {
 
     private func startRecording() {
         guard let recorder else { return }
+        // The previous take is an uncompressed CAF of roughly 20 MB a minute.
+        // Nothing else deletes it, so it goes now that it is being replaced.
+        discardTakeFile()
         stopReplay()
         // No point stopping a player that was never scheduled.
         if player.isPlaying { player.stop() }
@@ -309,10 +393,30 @@ final class Conductor {
         stopReplay()
         allNotesOff()
         setSustain(false)
+        discardTakeFile()
         try? recorder?.reset()
         currentScore = MelodyScore()
         hasRecording = false
         transport = .idle
+    }
+
+    /// Removes the working file behind the current take. The saved melody is a
+    /// separate, compressed copy, so this only throws away scratch.
+    private func discardTakeFile() {
+        guard let url = recorder?.audioFile?.url else { return }
+        player.stop()
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Clears takes left behind by previous runs, which used to accumulate
+    /// indefinitely - a testing session alone left the best part of a gigabyte.
+    private func removeOrphanedTakes() {
+        let tmp = FileManager.default.temporaryDirectory
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: tmp, includingPropertiesForKeys: nil)) ?? []
+        for file in files where file.pathExtension.lowercased() == "caf" {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     // MARK: - Replay highlighting

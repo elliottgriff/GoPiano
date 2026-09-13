@@ -75,12 +75,25 @@ struct PianoLayout {
     var allKeys: [PianoKey] { whiteKeys + blackKeys }
 
     /// Black keys sit above white ones, so they are tested first.
-    func note(at point: CGPoint) -> UInt8? {
+    func key(at point: CGPoint) -> PianoKey? {
         guard point.x >= 0, point.x <= size.width, point.y >= 0, point.y <= size.height else {
             return nil
         }
-        if let hit = blackKeys.first(where: { $0.frame.contains(point) }) { return hit.note }
-        return whiteKeys.first(where: { $0.frame.contains(point) })?.note
+        if let hit = blackKeys.first(where: { $0.frame.contains(point) }) { return hit }
+        return whiteKeys.first { $0.frame.contains(point) }
+    }
+
+    func note(at point: CGPoint) -> UInt8? { key(at: point)?.note }
+
+    /// How hard the note sounds, from where the key was struck: towards the
+    /// player is louder, the way pressing further into a key is. Real velocity
+    /// needs pressure the screen cannot measure, and touch area is too noisy to
+    /// play with, but position is predictable and works on every device.
+    static func velocity(for point: CGPoint, on key: PianoKey) -> UInt8 {
+        guard key.frame.height > 0 else { return 100 }
+        let depth = (point.y - key.frame.minY) / key.frame.height
+        let eased = min(max(depth, 0), 1)
+        return UInt8(58 + eased * 69)   // 58...127, never inaudible
     }
 
     static func name(for note: UInt8) -> String {
