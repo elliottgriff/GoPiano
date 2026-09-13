@@ -56,6 +56,23 @@ Each sample also declares its own key range. The key map matches a note against
 every sample whose range contains it and takes the first hit, so leaving the
 ranges wide open makes one sample answer for the whole keyboard.
 
+## Getting around
+
+The app opens straight onto the keyboard, and deliberately stays that way:
+every screen you pass through before making a sound is a tax on an instrument.
+Navigation lives in the control bar rather than a tab bar, which in landscape
+would eat height the keys need.
+
+- **Melodies** is a landscape two-column view - the library on the left, the
+  selected melody on the right with a small keyboard that lights up as it plays
+  and the share and export actions in plain sight. A single-column list here
+  wastes the width and squeezes every row into a sliver.
+- **Settings** is a popover, not a screen. Two controls do not justify covering
+  the keyboard.
+- The keys stop short of the bottom edge, leaving a bezel where a real keyboard
+  has one. That is also what keeps the swipe out of the app from sounding a note
+  on the way.
+
 ## Replay and video
 
 Recording a take captures the notes as well as the audio: one span per note held

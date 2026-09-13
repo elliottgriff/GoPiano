@@ -5,6 +5,30 @@
 
 import SwiftUI
 
+/// Draws a keyboard and nothing else. Shared by the playable keyboard and the
+/// small preview in the melody library, so both look like the exported video.
+struct KeyboardCanvas: View {
+    let firstOctave: Int
+    let octaveCount: Int
+    let pressed: Set<UInt8>
+    var showsLabels: Bool = true
+
+    var body: some View {
+        Canvas { context, size in
+            let layout = PianoLayout(firstOctave: firstOctave,
+                                     octaveCount: octaveCount,
+                                     size: size)
+            context.withCGContext { cgContext in
+                KeyboardRenderer.draw(layout: layout,
+                                      pressed: pressed,
+                                      showsLabels: showsLabels,
+                                      in: cgContext)
+            }
+        }
+    }
+}
+
+/// The playable keyboard: the same drawing, plus touch handling.
 struct KeyboardView: View {
     @Environment(Conductor.self) private var conductor
 
@@ -18,7 +42,10 @@ struct KeyboardView: View {
                                      octaveCount: octaveCount,
                                      size: proxy.size)
             ZStack {
-                Canvas { context, _ in draw(layout: layout, in: &context) }
+                KeyboardCanvas(firstOctave: firstOctave,
+                               octaveCount: octaveCount,
+                               pressed: conductor.highlightedNotes,
+                               showsLabels: showsLabels)
                 TouchTracker { points in
                     handle(points: points, layout: layout)
                 }
@@ -27,22 +54,6 @@ struct KeyboardView: View {
             .onChange(of: octaveCount) { conductor.allNotesOff() }
         }
     }
-
-    // MARK: - Drawing
-
-    private func draw(layout: PianoLayout, in context: inout GraphicsContext) {
-        // Hand off to the shared renderer so the live keyboard and an exported
-        // video are drawn by the same code.
-        let pressed = conductor.highlightedNotes
-        context.withCGContext { cgContext in
-            KeyboardRenderer.draw(layout: layout,
-                                  pressed: pressed,
-                                  showsLabels: showsLabels,
-                                  in: cgContext)
-        }
-    }
-
-    // MARK: - Touch handling
 
     private func handle(points: [CGPoint], layout: PianoLayout) {
         let notes = Set(points.compactMap { layout.note(at: $0) })

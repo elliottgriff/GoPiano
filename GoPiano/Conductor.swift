@@ -45,6 +45,13 @@ final class Conductor {
     /// What the keyboard should show as held down, whoever is holding it.
     var highlightedNotes: Set<UInt8> { activeNotes.union(replayNotes) }
 
+    /// Sustain holds notes on after the key is released, like the right pedal.
+    private(set) var isSustaining = false
+
+    /// How wet the reverb is. Stored here because the effect can only be
+    /// written once the engine has built its audio units.
+    private(set) var reverbMix: Float = 0.25
+
     var isRecording: Bool { transport == .recording }
     var isPlaying: Bool { transport == .playing }
 
@@ -85,7 +92,7 @@ final class Conductor {
             // Effect parameters are only writable once the engine has
             // instantiated the underlying audio units.
             reverb.loadFactoryPreset(.mediumRoom)
-            reverb.dryWetMix = 0.25
+            reverb.dryWetMix = AUValue(reverbMix)
 
             // Set before the samples are handed over: swapping in new sampler
             // data copies the envelope settings across from the current one,
@@ -198,6 +205,18 @@ final class Conductor {
         if isRecording { scoreRecorder.noteOff(note, at: at) }
     }
 
+    func setReverbMix(_ value: Float) {
+        reverbMix = min(max(value, 0), 1)
+        guard isInstrumentLoaded else { return }
+        reverb.dryWetMix = AUValue(reverbMix)
+    }
+
+    func setSustain(_ on: Bool) {
+        guard on != isSustaining else { return }
+        isSustaining = on
+        sampler.sustainPedal(pedalDown: on)
+    }
+
     func allNotesOff() {
         let held = activeNotes
         for note in held {
@@ -261,6 +280,14 @@ final class Conductor {
         }
     }
 
+    /// Stops playback without toggling into it, for views that are going away.
+    func stopPlayback() {
+        guard transport == .playing else { stopReplay(); return }
+        player.stop()
+        stopReplay()
+        transport = .idle
+    }
+
     private func playbackFinished() {
         if transport == .playing { transport = .idle }
         stopReplay()
@@ -281,6 +308,7 @@ final class Conductor {
         player.stop()
         stopReplay()
         allNotesOff()
+        setSustain(false)
         try? recorder?.reset()
         currentScore = MelodyScore()
         hasRecording = false

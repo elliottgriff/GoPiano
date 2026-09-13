@@ -2,6 +2,11 @@
 //  RecordingsView.swift
 //  GoPiano
 //
+//  A landscape-shaped library: melodies down the left, the selected one on the
+//  right. A single-column list in landscape wastes the width and squeezes every
+//  row into a sliver, and the actions that matter here - replay and video -
+//  deserve to be visible rather than buried behind an icon.
+//
 
 import SwiftUI
 
@@ -10,10 +15,11 @@ struct RecordingsView: View {
     @Environment(Conductor.self) private var conductor
 
     @State private var recordings: [Recording] = []
+    @State private var selection: Recording?
     @State private var renaming: Recording?
     @State private var newName = ""
     @State private var errorMessage: String?
-    @State private var exporting: Recording?
+    @State private var exportingVideo = false
     @State private var exportedVideo: URL?
 
     var body: some View {
@@ -24,18 +30,25 @@ struct RecordingsView: View {
                                            systemImage: "waveform",
                                            description: Text("Record something, then tap Save to keep it."))
                 } else {
-                    list
+                    HStack(spacing: 0) {
+                        list
+                            .frame(maxWidth: 300)
+                        Divider()
+                        detail
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
             .navigationTitle("Melodies")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { close() }
                 }
             }
         }
-        .onAppear { reload() }
+        .onAppear(perform: reload)
+        .onDisappear { conductor.stopPlayback() }
         .alert("Rename", isPresented: Binding(get: { renaming != nil },
                                               set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $newName)
@@ -49,88 +62,152 @@ struct RecordingsView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .sheet(item: $exportedVideo) { url in
-            VideoShareSheet(url: url)
-        }
+        .sheet(item: $exportedVideo) { VideoShareSheet(url: $0) }
     }
+
+    // MARK: - List
 
     private var list: some View {
-        List {
-            Section {
-                ForEach(recordings) { recording in
-                    row(for: recording)
+        List(selection: $selection) {
+            ForEach(recordings) { recording in
+                Button {
+                    select(recording)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: selection == recording ? "music.note.list" : "waveform")
+                            .foregroundStyle(selection == recording ? Color.accentColor : .secondary)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(recording.name).lineLimit(1)
+                            Text(format(recording.duration))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
                 }
-                .onDelete(perform: delete)
-            } footer: {
-                Text("Tap a melody to play it on the keyboard. Melodies are saved on this iPhone and also appear in the Files app, under GoPiano.")
+                .tint(.primary)
             }
+            .onDelete(perform: delete)
         }
+        .listStyle(.plain)
     }
 
-    private func row(for recording: Recording) -> some View {
-        let playable = RecordingStore.shared.hasScore(for: recording)
-        return HStack(spacing: 12) {
-            Button {
-                playOnKeyboard(recording)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "play.circle").font(.title2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(recording.name).lineLimit(1)
-                        Text("\(recording.created.formatted(date: .abbreviated, time: .shortened)) · \(format(recording.duration))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Play \(recording.name) on the keyboard")
+    // MARK: - Detail
 
-            if exporting == recording {
-                ProgressView()
-            } else {
-                Menu {
-                    ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
-                        Label("Share Audio", systemImage: "waveform")
+    @ViewBuilder
+    private var detail: some View {
+        if let recording = selection {
+            VStack(spacing: 14) {
+                VStack(spacing: 2) {
+                    Text(recording.name).font(.headline).lineLimit(1)
+                    Text("\(recording.created.formatted(date: .abbreviated, time: .shortened)) · \(format(recording.duration))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                preview(for: recording)
+
+                HStack(spacing: 10) {
+                    Button {
+                        togglePlay(recording)
+                    } label: {
+                        Label(conductor.isPlaying ? "Stop" : "Play",
+                              systemImage: conductor.isPlaying ? "stop.fill" : "play.fill")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.borderedProminent)
+
+                    ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
+                        Label("Audio", systemImage: "waveform")
+                    }
+                    .buttonStyle(.bordered)
+
                     Button {
                         exportVideo(recording)
                     } label: {
-                        Label("Share Video", systemImage: "film")
+                        if exportingVideo {
+                            ProgressView()
+                        } else {
+                            Label("Video", systemImage: "film")
+                        }
                     }
-                    .disabled(!playable)
-                    Button {
-                        newName = recording.name
-                        renaming = recording
+                    .buttonStyle(.bordered)
+                    .disabled(!RecordingStore.shared.hasScore(for: recording) || exportingVideo)
+
+                    Menu {
+                        Button {
+                            newName = recording.name
+                            renaming = recording
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            deleteSelected()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     } label: {
-                        Label("Rename", systemImage: "pencil")
+                        Image(systemName: "ellipsis.circle").font(.title3)
                     }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
                 }
-                .accessibilityLabel("Share or rename \(recording.name)")
+                .disabled(exportingVideo)
             }
+            .padding()
+        } else {
+            ContentUnavailableView("Pick a Melody",
+                                   systemImage: "hand.tap",
+                                   description: Text("Choose one on the left to play it back and watch the keys."))
         }
-        .disabled(exporting != nil)
+    }
+
+    /// The keys light up here exactly as they do in an exported video, because
+    /// both go through the same renderer.
+    @ViewBuilder
+    private func preview(for recording: Recording) -> some View {
+        let score = RecordingStore.shared.score(for: recording)
+        if let score, !score.isEmpty {
+            let framing = score.framing()
+            KeyboardCanvas(firstOctave: framing.firstOctave,
+                           octaveCount: framing.octaveCount,
+                           pressed: conductor.replayNotes,
+                           showsLabels: false)
+                .frame(maxWidth: .infinity)
+                .frame(height: 96)
+                .background(Color(white: 0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            Text("Saved before GoPiano recorded which keys were played, so there are no keys to show and no video to export.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(height: 96)
+        }
     }
 
     // MARK: - Actions
 
     private func reload() {
         recordings = RecordingStore.shared.all()
+        if selection == nil || !recordings.contains(where: { $0 == selection }) {
+            selection = recordings.first
+            if let first = selection { try? conductor.load(first) }
+        }
     }
 
-    /// Hands the melody to the conductor and gets out of the way, so it plays
-    /// on the real keyboard with the keys lighting up.
-    private func playOnKeyboard(_ recording: Recording) {
+    private func select(_ recording: Recording) {
+        conductor.stopPlayback()
+        selection = recording
         do {
             try conductor.load(recording)
-            dismiss()
-            conductor.togglePlayback()
         } catch {
-            errorMessage = "That melody could not be played."
+            errorMessage = "That melody could not be opened."
         }
+    }
+
+    private func togglePlay(_ recording: Recording) {
+        if !conductor.isPlaying, selection != recording { select(recording) }
+        conductor.togglePlayback()
     }
 
     private func exportVideo(_ recording: Recording) {
@@ -138,35 +215,48 @@ struct RecordingsView: View {
             errorMessage = MelodyVideoError.noScore.localizedDescription
             return
         }
-        exporting = recording
+        conductor.stopPlayback()
+        exportingVideo = true
         Task {
             do {
-                let url = try await MelodyVideoExporter().export(recording: recording, score: score)
-                exporting = nil
-                exportedVideo = url
+                exportedVideo = try await MelodyVideoExporter().export(recording: recording, score: score)
             } catch {
-                exporting = nil
                 errorMessage = error.localizedDescription
             }
+            exportingVideo = false
         }
     }
 
     private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            RecordingStore.shared.delete(recordings[index])
-        }
+        let going = offsets.map { recordings[$0] }
+        if going.contains(where: { $0 == selection }) { conductor.stopPlayback() }
+        going.forEach(RecordingStore.shared.delete)
         recordings.remove(atOffsets: offsets)
+        if let selection, !recordings.contains(selection) { self.selection = recordings.first }
+    }
+
+    private func deleteSelected() {
+        guard let recording = selection,
+              let index = recordings.firstIndex(of: recording) else { return }
+        delete(at: IndexSet(integer: index))
     }
 
     private func commitRename() {
         guard let recording = renaming else { return }
         renaming = nil
         do {
-            try RecordingStore.shared.rename(recording, to: newName)
-            reload()
+            let renamed = try RecordingStore.shared.rename(recording, to: newName)
+            conductor.stopPlayback()
+            recordings = RecordingStore.shared.all()
+            selection = recordings.first { $0.url == renamed.url } ?? recordings.first
         } catch {
             errorMessage = "That name could not be used."
         }
+    }
+
+    private func close() {
+        conductor.stopPlayback()
+        dismiss()
     }
 
     private func format(_ seconds: TimeInterval) -> String {
@@ -184,9 +274,8 @@ private struct VideoShareSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                Image(systemName: "film").font(.system(size: 48)).foregroundStyle(.secondary)
+                Image(systemName: "film").font(.system(size: 44)).foregroundStyle(.secondary)
                 Text("Your melody is ready to share.")
-                    .multilineTextAlignment(.center)
                 ShareLink(item: url, preview: SharePreview(url.deletingPathExtension().lastPathComponent)) {
                     Label("Share Video", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)

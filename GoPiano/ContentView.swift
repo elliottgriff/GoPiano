@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var isNamingTake = false
     @State private var takeName = ""
     @State private var saveError: String?
+    @State private var showSettings = false
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -32,9 +33,14 @@ struct ContentView: View {
                          octaveCount: octaveCount,
                          showsLabels: showsLabels)
                 .background(Color(white: 0.65))
+            // A bezel along the front edge, where a real keyboard has one. It
+            // also keeps the keys out of the home indicator, so the swipe that
+            // leaves the app doesn't sound a note on the way out.
+            bezel
         }
-        .background(Color.black)
-        .ignoresSafeArea(.all, edges: .bottom)
+        // The colour runs under the home indicator while the content stays
+        // inside the safe area, so the front edge reads as one strip.
+        .background(Self.bezelColor.ignoresSafeArea())
         .overlay(alignment: .top) { startupError }
         .sheet(isPresented: $showRecordings) { RecordingsView() }
         .alert("Save Melody", isPresented: $isNamingTake) {
@@ -88,6 +94,13 @@ struct ContentView: View {
 
             Spacer(minLength: 0)
 
+            circleButton("pedal.accelerator",
+                         tint: conductor.isSustaining ? .green : .white,
+                         enabled: conductor.isInstrumentLoaded) {
+                conductor.setSustain(!conductor.isSustaining)
+            }
+            .accessibilityLabel(conductor.isSustaining ? "Sustain on" : "Sustain off")
+
             circleButton("arrow.counterclockwise", enabled: conductor.hasRecording || conductor.isRecording) {
                 conductor.reset()
                 elapsed = 0
@@ -117,12 +130,34 @@ struct ContentView: View {
             circleButton("list.bullet", enabled: true) {
                 showRecordings = true
             }
-            .accessibilityLabel("Show saved recordings")
+            .accessibilityLabel("Show saved melodies")
+
+            circleButton("gearshape", enabled: true) {
+                showSettings = true
+            }
+            .accessibilityLabel("Settings")
+            .popover(isPresented: $showSettings) {
+                SettingsView(showsLabels: $showsLabels)
+                    .presentationCompactAdaptation(.popover)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background(Color(red: 0.25, green: 0.27, blue: 0.30))
+    }
+
+    static let bezelColor = Color(white: 0.16)
+
+    /// A front edge below the keys. Devices with a home indicator get most of
+    /// this from the safe area; this is the minimum for those without one.
+    private var bezel: some View {
+        Rectangle()
+            .fill(Self.bezelColor)
+            .frame(height: 14)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.black.opacity(0.4)).frame(height: 1)
+            }
     }
 
     private var timeReadout: some View {
