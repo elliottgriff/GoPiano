@@ -55,7 +55,7 @@ struct ContentView: View {
             KeyboardView(firstOctave: firstOctave,
                          octaveCount: octaveCount,
                          showsLabels: showsLabels)
-                .background(Color(white: 0.65))
+                .background(Self.bezelColor)
             // A bezel along the front edge, where a real keyboard has one. It
             // also keeps the keys out of the home indicator, so the swipe that
             // leaves the app doesn't sound a note on the way out.
