@@ -3,6 +3,7 @@
 //  GoPiano
 //
 
+import Combine
 import SwiftUI
 
 struct ContentView: View {
