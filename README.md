@@ -4,10 +4,16 @@ A playable multi-touch piano for iPhone and iPad: hold down chords, slide betwee
 keys, record what you play, then watch it back on the keyboard or share it as a
 video with the keys lighting up.
 
-<img width=455 src="https://user-images.githubusercontent.com/34309823/54627395-b6b69d80-4a49-11e9-973a-0c63cdde9e3a.PNG">
-<img width=455 src="https://user-images.githubusercontent.com/34309823/54627396-b74f3400-4a49-11e9-892f-b3bc8b180982.PNG">
+![The keyboard with a C major chord held down](Docs/screenshots/keyboard.png)
 
-*(Screenshots are from version 1.x and predate the SwiftUI rewrite.)*
+![The melody library, with a saved take selected](Docs/screenshots/melodies.png)
+
+*Tap a melody and it plays on the keyboard, keys lighting up as they were pressed.
+Share it as audio, or export a video of the keyboard playing it back.*
+
+![Three octaves on a 13-inch iPad](Docs/screenshots/ipad.png)
+
+*How many octaves are shown depends on the screen: one or two on a phone, three on an iPad.*
 
 ## Building
 
