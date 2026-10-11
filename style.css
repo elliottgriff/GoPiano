@@ -40,10 +40,18 @@ li { margin: .3rem 0; }
   padding: 1.1rem 1.3rem;
   margin: 1.25rem 0;
 }
-.keys { display: flex; gap: 2px; height: 46px; margin-bottom: 1.5rem; }
-.keys i { flex: 1; background: #fff; border: 1px solid #c9c7c2; border-top: none;
-          border-radius: 0 0 4px 4px; display: block; }
-.keys i.b { flex: .62; background: #16161a; border-color: #16161a; }
+.keys {
+  display: flex;
+  height: 46px;
+  margin-bottom: 1.5rem;
+  background: #fff;
+  border: 1px solid #c9c7c2;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+.keys i { flex: 1; background: #fff; border-right: 1px solid #c9c7c2; display: block; }
+.keys i:last-child { border-right: none; }
+.keys i.b { flex: .6; background: #16161a; border-right: none; }
 .keys i.lit { background: #ffc7c1; }
 footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
          color: var(--muted); font-size: .88rem; }
