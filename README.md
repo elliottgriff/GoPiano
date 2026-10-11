@@ -111,6 +111,9 @@ How hard a note sounds comes from where the key is struck: towards the player is
 louder. Real velocity needs pressure the screen cannot measure and touch area is
 too noisy to play with, but position is predictable and works on every device.
 
+How many octaves are shown depends on the screen: a phone gets one or two, an
+iPad three. Four fits on a 13-inch iPad but the keys end up too thin to hit.
+
 The octave controls stop at the top of the sampled range. Past it there is
 nothing left to play but the topmost sample stretched upwards, which sounds
 thin, so the buttons simply do not go there.

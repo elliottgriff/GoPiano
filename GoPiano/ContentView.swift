@@ -13,6 +13,9 @@ struct ContentView: View {
     @AppStorage("firstOctave") private var firstOctave = 3
     @AppStorage("octaveCount") private var octaveCount = 1
     @AppStorage("showsLabels") private var showsLabels = true
+    /// Until the player picks a width themselves, a big screen gets a big
+    /// keyboard rather than one octave of enormous keys.
+    @AppStorage("hasChosenOctaveCount") private var hasChosenOctaveCount = false
 
     @State private var elapsed: TimeInterval = 0
     @State private var showRecordings = false
@@ -29,6 +32,21 @@ struct ContentView: View {
     private var maxFirstOctave: Int {
         let highestOctave = (SampleMap.highestSampledNote - baseMIDINote - 11) / 12
         return max(0, highestOctave - (octaveCount - 1))
+    }
+
+    /// How many octaves the screen can show while the white keys stay wide
+    /// enough to play comfortably. A phone fits two, an iPad three. Four fits
+    /// on a 13-inch iPad but the keys end up too thin to hit.
+    private var maxOctaves: Int {
+        let minimumWhiteKey: CGFloat = 48
+        let fits = Int(screenWidth / (7 * minimumWhiteKey))
+        return min(3, max(1, fits))
+    }
+
+    private var screenWidth: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow?.bounds.width }
+            .max() ?? 0
     }
 
     var body: some View {
@@ -64,6 +82,7 @@ struct ContentView: View {
         }
         .onAppear {
             conductor.start()
+            applyDefaultWidth()
             clampOctave()
         }
         .onReceive(tick) { _ in
@@ -79,11 +98,17 @@ struct ContentView: View {
     private var controlBar: some View {
         HStack(spacing: 14) {
             Toggle("", isOn: Binding(
-                get: { octaveCount == 2 },
-                set: { octaveCount = $0 ? 2 : 1; clampOctave() }
+                get: { octaveCount > 1 },
+                set: {
+                    hasChosenOctaveCount = true
+                    octaveCount = $0 ? maxOctaves : 1
+                    clampOctave()
+                }
             ))
             .labelsHidden()
-            .accessibilityLabel(octaveCount == 2 ? "Show one octave" : "Show two octaves")
+            .accessibilityLabel(octaveCount > 1
+                                ? "Show one octave"
+                                : "Show \(maxOctaves) octaves")
 
             circleButton("minus", enabled: firstOctave > 0) {
                 firstOctave -= 1
@@ -207,7 +232,15 @@ struct ContentView: View {
     // MARK: - Helpers
 
     private func clampOctave() {
+        // A keyboard wider than the screen can show would just squash the keys.
+        octaveCount = min(max(1, octaveCount), maxOctaves)
         firstOctave = min(max(0, firstOctave), maxFirstOctave)
+    }
+
+    /// On a screen with room for it, start wide instead of on one octave.
+    private func applyDefaultWidth() {
+        guard !hasChosenOctaveCount else { return }
+        if maxOctaves >= 3 { octaveCount = maxOctaves }
     }
 
     private func save(as name: String) {
