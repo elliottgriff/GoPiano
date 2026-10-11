@@ -8,5 +8,11 @@
 	     still generated from build settings and merged into this file. -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
+
+	<!-- The app uses no encryption beyond what the OS provides, so there is
+	     nothing to declare. Stating it here stops App Store Connect asking on
+	     every submission. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

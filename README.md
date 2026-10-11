@@ -123,3 +123,13 @@ The piano is multi-sampled across MIDI 21-84 (A0 to C6) and pitched from the
 nearest sample outside that. Tuning was calibrated against captured output;
 across the sampled range the played pitch lands within a few cents of equal
 temperament. `Tools/README.md` covers where the samples came from.
+
+## Credits
+
+Piano samples are from the [Piano FF](https://freesound.org/people/jobro/packs/2489/)
+pack by **jobro** on Freesound, used under
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The samples have been
+modified: resampled, retuned to concert pitch and remapped across the keyboard.
+See `Tools/README.md` for how.
+
+The licence requires this credit, so it also appears in the app, under Settings.
