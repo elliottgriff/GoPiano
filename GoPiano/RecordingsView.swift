@@ -32,7 +32,7 @@ struct RecordingsView: View {
                 } else {
                     HStack(spacing: 0) {
                         list
-                            .frame(maxWidth: 300)
+                            .frame(minWidth: 180, idealWidth: 240, maxWidth: 280)
                         Divider()
                         detail
                             .frame(maxWidth: .infinity)
@@ -108,48 +108,11 @@ struct RecordingsView: View {
 
                 preview(for: recording)
 
-                HStack(spacing: 10) {
-                    Button {
-                        togglePlay(recording)
-                    } label: {
-                        Label(conductor.isPlaying ? "Stop" : "Play",
-                              systemImage: conductor.isPlaying ? "stop.fill" : "play.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
-                        Label("Audio", systemImage: "waveform")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        exportVideo(recording)
-                    } label: {
-                        if exportingVideo {
-                            ProgressView()
-                        } else {
-                            Label("Video", systemImage: "film")
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!RecordingStore.shared.hasScore(for: recording) || exportingVideo)
-
-                    Menu {
-                        Button {
-                            newName = recording.name
-                            renaming = recording
-                        } label: {
-                            Label("Rename", systemImage: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            deleteSelected()
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle").font(.title3)
-                    }
+                // Labels never wrap; if the pane is too narrow for words the
+                // whole row falls back to icons rather than stacking letters.
+                ViewThatFits(in: .horizontal) {
+                    actions(for: recording, showingLabels: true)
+                    actions(for: recording, showingLabels: false)
                 }
                 .disabled(exportingVideo)
             }
@@ -158,6 +121,73 @@ struct RecordingsView: View {
             ContentUnavailableView("Pick a Melody",
                                    systemImage: "hand.tap",
                                    description: Text("Choose one on the left to play it back and watch the keys."))
+        }
+    }
+
+    @ViewBuilder
+    private func actions(for recording: Recording, showingLabels: Bool) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                togglePlay(recording)
+            } label: {
+                actionLabel(conductor.isPlaying ? "Stop" : "Play",
+                            systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
+                            showingLabels: showingLabels)
+                    .frame(maxWidth: showingLabels ? .infinity : nil)
+            }
+            .buttonStyle(.borderedProminent)
+
+            ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
+                actionLabel("Share", systemImage: "square.and.arrow.up",
+                            showingLabels: showingLabels)
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                exportVideo(recording)
+            } label: {
+                if exportingVideo {
+                    ProgressView()
+                } else {
+                    actionLabel("Video", systemImage: "film", showingLabels: showingLabels)
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(!RecordingStore.shared.hasScore(for: recording) || exportingVideo)
+
+            Menu {
+                Button {
+                    newName = recording.name
+                    renaming = recording
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    deleteSelected()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(minWidth: 20)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("More actions")
+        }
+        .disabled(exportingVideo)
+    }
+
+    @ViewBuilder
+    private func actionLabel(_ title: String, systemImage: String,
+                             showingLabels: Bool) -> some View {
+        if showingLabels {
+            Label(title, systemImage: systemImage)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            Image(systemName: systemImage)
+                .frame(minWidth: 20)
+                .accessibilityLabel(title)
         }
     }
 
