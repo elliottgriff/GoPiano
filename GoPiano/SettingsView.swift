@@ -22,39 +22,32 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                // "Note Names" and "Reverb" say what they do; a caption under
+                // each only costs height the popover does not have.
                 Toggle("Note Names", isOn: $showsLabels)
-            } footer: {
-                Text("Show the name of each white key.")
-            }
 
-            Section {
                 HStack {
                     Text("Reverb")
                     Slider(value: Binding(get: { Double(conductor.reverbMix) },
                                           set: { conductor.setReverbMix(Float($0)) }),
                            in: 0...0.6)
+                        .accessibilityLabel("Reverb")
                 }
-            } footer: {
-                Text("How much room the piano sounds like it is in.")
             }
 
             Section("Credits") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Piano samples are from the Piano FF pack by jobro on Freesound, used under the Creative Commons Attribution 3.0 licence. The samples have been modified.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 18) {
-                        Link("Piano FF pack", destination: Self.packURL)
-                        Link("CC BY 3.0", destination: Self.licenceURL)
-                    }
+                // The links sit inside the sentence rather than on a row of
+                // their own: the row was what pushed them off the bottom of
+                // the popover, taking the licence link with it.
+                Text("Piano samples: [Piano FF](\(Self.packURL)) by jobro on Freesound, used under [CC BY 3.0](\(Self.licenceURL)) and modified.")
                     .font(.footnote)
-                }
-                .padding(.vertical, 2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        // In landscape the screen is only ~400pt tall, so the popover has to
-        // stay under that; the form scrolls for the rest.
-        .frame(idealWidth: 360, idealHeight: 320)
+        // Sized to hold every section at once. An iPhone in landscape is only
+        // ~400pt tall, so this has to stay well under that, which is why the
+        // contents above are kept short rather than the box made taller.
+        .frame(idealWidth: 340, idealHeight: 300)
     }
 }
