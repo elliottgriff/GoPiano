@@ -34,6 +34,8 @@ Requires Xcode 16 or newer and iOS 17.
   from **`TouchTracker`**, a small `UIView` bridge. SwiftUI gestures only track
   one finger, which is no use for a piano.
 - **`SampleMap`** is generated from `Tools/samples.csv` — see `Tools/README.md`.
+- **`MIDIFile`** turns a `MelodyScore` into a Standard MIDI File - see MIDI
+  below.
 
 Two ordering constraints in the audio setup are load-bearing, and both are
 commented at the call site in `Conductor.start()`:
@@ -99,7 +101,19 @@ rather than to whatever the octave controls happened to be set to.
 and the video, so the two cannot drift apart.
 
 Melodies saved before this existed have no score: they still play and share as
-audio, and **Share Video** is simply unavailable for them.
+audio, and **Video** and **MIDI** are simply unavailable for them.
+
+## MIDI
+
+**MIDI** writes the same spans out as a Standard MIDI File, so a melody can be
+opened in a DAW and edited as notes rather than as a waveform. The file is
+format 0, 480 ticks per quarter note, with each note's velocity as it was
+played.
+
+Melodies are played against no click, so there is no tempo to preserve - only
+the real times the keys went down. Those times are written against a declared
+120 bpm, which keeps them exact in seconds and lets a DAW lay its own grid over
+an unquantised performance rather than pretending the playing was in time.
 
 ## Saving and sharing
 

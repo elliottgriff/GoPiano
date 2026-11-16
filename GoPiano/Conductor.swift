@@ -265,7 +265,7 @@ final class Conductor {
         let at = now - recordingStart
         activeNotes.insert(note)
         sampler.play(noteNumber: note, velocity: velocity)
-        if isRecording { scoreRecorder.noteOn(note, at: at) }
+        if isRecording { scoreRecorder.noteOn(note, velocity: velocity, at: at) }
     }
 
     func noteOff(_ note: UInt8) {

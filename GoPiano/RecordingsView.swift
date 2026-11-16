@@ -20,7 +20,7 @@ struct RecordingsView: View {
     @State private var newName = ""
     @State private var errorMessage: String?
     @State private var exportingVideo = false
-    @State private var exportedVideo: URL?
+    @State private var exported: ExportedFile?
 
     var body: some View {
         NavigationStack {
@@ -62,7 +62,7 @@ struct RecordingsView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .sheet(item: $exportedVideo) { VideoShareSheet(url: $0) }
+        .sheet(item: $exported) { ExportShareSheet(file: $0) }
     }
 
     // MARK: - List
@@ -153,7 +153,15 @@ struct RecordingsView: View {
                 }
             }
             .buttonStyle(.bordered)
-            .disabled(!RecordingStore.shared.hasScore(for: recording) || exportingVideo)
+            .disabled(!hasScore(recording) || exportingVideo)
+
+            Button {
+                exportMIDI(recording)
+            } label: {
+                actionLabel("MIDI", systemImage: "pianokeys", showingLabels: showingLabels)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!hasScore(recording))
 
             Menu {
                 Button {
@@ -175,6 +183,10 @@ struct RecordingsView: View {
             .accessibilityLabel("More actions")
         }
         .disabled(exportingVideo)
+    }
+
+    private func hasScore(_ recording: Recording) -> Bool {
+        RecordingStore.shared.hasScore(for: recording)
     }
 
     @ViewBuilder
@@ -249,11 +261,28 @@ struct RecordingsView: View {
         exportingVideo = true
         Task {
             do {
-                exportedVideo = try await MelodyVideoExporter().export(recording: recording, score: score)
+                let url = try await MelodyVideoExporter().export(recording: recording, score: score)
+                exported = ExportedFile(url: url, kind: .video)
             } catch {
                 errorMessage = error.localizedDescription
             }
             exportingVideo = false
+        }
+    }
+
+    /// Writing a MIDI file is a few hundred bytes of arithmetic, so unlike the
+    /// video export it needs no progress of its own.
+    private func exportMIDI(_ recording: Recording) {
+        guard let score = RecordingStore.shared.score(for: recording), !score.isEmpty else {
+            errorMessage = MIDIExportError.noScore.localizedDescription
+            return
+        }
+        conductor.stopPlayback()
+        do {
+            exported = ExportedFile(url: try MIDIFile.write(score, named: recording.name),
+                                    kind: .midi)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -295,26 +324,41 @@ struct RecordingsView: View {
     }
 }
 
-/// Lets a freshly rendered video be shared without first saving it anywhere
-/// the user has to manage.
-private struct VideoShareSheet: View {
+/// A freshly made file, held only long enough to be shared.
+struct ExportedFile: Identifiable {
+    enum Kind {
+        case video
+        case midi
+    }
+
     let url: URL
+    let kind: Kind
+
+    var id: URL { url }
+}
+
+/// Lets a freshly made export be shared without first saving it anywhere the
+/// user has to manage.
+private struct ExportShareSheet: View {
+    let file: ExportedFile
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                Image(systemName: "film").font(.system(size: 44)).foregroundStyle(.secondary)
-                Text("Your melody is ready to share.")
-                ShareLink(item: url, preview: SharePreview(url.deletingPathExtension().lastPathComponent)) {
-                    Label("Share Video", systemImage: "square.and.arrow.up")
+                Image(systemName: icon).font(.system(size: 44)).foregroundStyle(.secondary)
+                Text(message)
+                    .multilineTextAlignment(.center)
+                ShareLink(item: file.url,
+                          preview: SharePreview(file.url.deletingPathExtension().lastPathComponent)) {
+                    Label("Share \(title)", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 Spacer()
             }
             .padding()
-            .navigationTitle("Video")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -323,6 +367,29 @@ private struct VideoShareSheet: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    private var title: String {
+        switch file.kind {
+        case .video: "Video"
+        case .midi: "MIDI"
+        }
+    }
+
+    private var icon: String {
+        switch file.kind {
+        case .video: "film"
+        case .midi: "pianokeys"
+        }
+    }
+
+    private var message: String {
+        switch file.kind {
+        case .video:
+            "Your melody is ready to share."
+        case .midi:
+            "Your melody as editable notes. Open it in a DAW, or send it to yourself to work on later."
+        }
     }
 }
 
