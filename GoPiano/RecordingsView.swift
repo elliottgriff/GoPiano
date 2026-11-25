@@ -9,10 +9,15 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct RecordingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Conductor.self) private var conductor
+
+    /// Handed an imported melody to perform on the keyboard once this sheet
+    /// has gone, rather than playing it in here behind the library.
+    let onImport: (MelodyScore) -> Void
 
     @State private var recordings: [Recording] = []
     @State private var selection: Recording?
@@ -21,6 +26,10 @@ struct RecordingsView: View {
     @State private var errorMessage: String?
     @State private var exportingVideo = false
     @State private var exported: ExportedFile?
+    @State private var isImporting = false
+    /// Set once an imported melody has been handed to the keyboard, so going
+    /// away does not stop the performance it is about to start.
+    @State private var handedOff = false
 
     var body: some View {
         NavigationStack {
@@ -28,7 +37,7 @@ struct RecordingsView: View {
                 if recordings.isEmpty {
                     ContentUnavailableView("No Melodies",
                                            systemImage: "waveform",
-                                           description: Text("Record something, then tap Save to keep it."))
+                                           description: Text("Record something, then tap Save to keep it - or import a MIDI file to watch it played."))
                 } else {
                     HStack(spacing: 0) {
                         list
@@ -42,13 +51,20 @@ struct RecordingsView: View {
             .navigationTitle("Melodies")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Import") { isImporting = true }
+                        .accessibilityHint("Opens a MIDI file to play on the keyboard")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { close() }
                 }
             }
         }
         .onAppear(perform: reload)
-        .onDisappear { conductor.stopPlayback() }
+        .onDisappear { if !handedOff { conductor.stopPlayback() } }
+        .fileImporter(isPresented: $isImporting,
+                      allowedContentTypes: [.midi],
+                      onCompletion: importMIDI)
         .alert("Rename", isPresented: Binding(get: { renaming != nil },
                                               set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $newName)
@@ -316,6 +332,18 @@ struct RecordingsView: View {
     private func close() {
         conductor.stopPlayback()
         dismiss()
+    }
+
+    private func importMIDI(_ result: Result<URL, any Error>) {
+        do {
+            let score = try MIDIImport.score(from: try result.get())
+            conductor.stopPlayback()
+            handedOff = true
+            onImport(score)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func format(_ seconds: TimeInterval) -> String {

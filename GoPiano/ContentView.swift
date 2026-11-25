@@ -25,6 +25,9 @@ struct ContentView: View {
     @State private var takeName = ""
     @State private var saveError: String?
     @State private var showSettings = false
+    /// A melody imported from the library, waiting for the sheet to go so it
+    /// can be played on the keyboard rather than behind it.
+    @State private var importedScore: MelodyScore?
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -66,7 +69,9 @@ struct ContentView: View {
         // inside the safe area, so the front edge reads as one strip.
         .background(Self.bezelColor.ignoresSafeArea())
         .overlay(alignment: .top) { startupError }
-        .sheet(isPresented: $showRecordings) { RecordingsView() }
+        .sheet(isPresented: $showRecordings, onDismiss: playImported) {
+            RecordingsView(onImport: { importedScore = $0 })
+        }
         .alert("Save Melody", isPresented: $isNamingTake) {
             TextField("Name", text: $takeName)
             Button("Cancel", role: .cancel) {}
@@ -136,7 +141,7 @@ struct ContentView: View {
             }
             .accessibilityLabel(conductor.isSustaining ? "Sustain on" : "Sustain off")
 
-            circleButton("arrow.counterclockwise", enabled: conductor.hasRecording || conductor.isRecording) {
+            circleButton("arrow.counterclockwise", enabled: conductor.canPlay || conductor.isRecording) {
                 conductor.reset()
                 elapsed = 0
             }
@@ -151,7 +156,7 @@ struct ContentView: View {
             .accessibilityLabel(conductor.isRecording ? "Stop recording" : "Start recording")
 
             circleButton(conductor.isPlaying ? "pause.fill" : "play.fill",
-                         enabled: conductor.hasRecording && !conductor.isRecording) {
+                         enabled: conductor.canPlay && !conductor.isRecording) {
                 conductor.togglePlayback()
             }
             .accessibilityLabel(conductor.isPlaying ? "Pause playback" : "Play recording")
@@ -246,6 +251,20 @@ struct ContentView: View {
     private func applyDefaultWidth() {
         guard !hasChosenOctaveCount else { return }
         if maxOctaves >= 3 { octaveCount = maxOctaves }
+    }
+
+    /// Moves the keyboard to where the imported melody is played, as widely as
+    /// the screen allows, and starts it. Notes outside that still sound; they
+    /// just have no key on screen to light.
+    private func playImported() {
+        guard let score = importedScore else { return }
+        importedScore = nil
+        conductor.load(score)
+        let framing = score.framing(maximumOctaves: maxOctaves)
+        octaveCount = framing.octaveCount
+        firstOctave = framing.firstOctave
+        clampOctave()
+        conductor.togglePlayback()
     }
 
     private func save(as name: String) {

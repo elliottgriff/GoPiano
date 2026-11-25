@@ -70,8 +70,25 @@ struct MelodyScore: Codable, Hashable {
         guard let range = noteRange else { return (3, 1) }
         let first = (Int(range.lowerBound) - baseMIDINote) / 12
         let last = (Int(range.upperBound) - baseMIDINote) / 12
-        let count = min(maximumOctaves, max(1, last - first + 1))
-        return (max(0, first), count)
+        let needed = max(1, last - first + 1)
+        guard needed > maximumOctaves else { return (max(0, first), needed) }
+
+        // Wider than the keyboard can show - an imported piece, usually. Frame
+        // the stretch where most of the playing happens: starting from the
+        // bottom would keep the bass and cut off the tune.
+        let busiest = (max(0, first)...max(0, last - maximumOctaves + 1)).max { lhs, rhs in
+            noteCount(fromOctave: lhs, octaves: maximumOctaves)
+                < noteCount(fromOctave: rhs, octaves: maximumOctaves)
+        } ?? max(0, first)
+        return (busiest, maximumOctaves)
+    }
+
+    /// Notes that land on a keyboard of `octaves` starting at `fromOctave`,
+    /// counting the C it ends on.
+    private func noteCount(fromOctave octave: Int, octaves: Int) -> Int {
+        let low = baseMIDINote + octave * 12
+        let high = low + octaves * 12
+        return spans.lazy.filter { Int($0.note) >= low && Int($0.note) <= high }.count
     }
 }
 
