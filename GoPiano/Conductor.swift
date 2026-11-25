@@ -70,6 +70,16 @@ final class Conductor {
 
     private var now: TimeInterval { CACurrentMediaTime() }
 
+    /// How long the take runs: read live off the recording clock while one is
+    /// running, and the finished length once it stops. The readout used to add
+    /// up timer ticks, which drifts - the ticks arrive late under load, so the
+    /// number fell behind the take it was meant to be measuring.
+    var takeDuration: TimeInterval {
+        transport == .recording ? now - recordingStart : finishedTakeDuration
+    }
+
+    private var finishedTakeDuration: TimeInterval = 0
+
     init() {
         instrumentBus = Mixer(sampler)
         reverb = Reverb(instrumentBus)
@@ -103,8 +113,7 @@ final class Conductor {
             // Set before the samples are handed over: swapping in new sampler
             // data copies the envelope settings across from the current one,
             // and the parameters reject writes made straight after the swap.
-            sampler.masterVolume = 0.9
-            sampler.releaseDuration = 0.45
+            applySamplerParameters()
 
             loadInstrument()
             recorder = try NodeRecorder(node: reverb)
@@ -179,10 +188,28 @@ final class Conductor {
         do {
             try configureSession()
             try engine.start()
-            if let loadedSamples { sampler.update(data: loadedSamples) }
+            if let loadedSamples {
+                // Same ordering as at startup, and for the same reason: the
+                // swap copies these across from the current sampler and
+                // rejects writes made straight after it.
+                applySamplerParameters()
+                sampler.update(data: loadedSamples)
+            }
+            // The sampler comes back with the pedal up, while the control went
+            // on showing it down - so sustain looked on, did nothing, and had
+            // to be pressed twice to come back.
+            sampler.sustainPedal(pedalDown: isSustaining)
         } catch {
             Log("Could not resume audio: \(error)")
         }
+    }
+
+    /// Volume and envelope for the sampler. Always set *before* sampler data
+    /// is swapped in, never after: the swap copies these across from the
+    /// current sampler, and writes made straight afterwards are rejected.
+    private func applySamplerParameters() {
+        sampler.masterVolume = 0.9
+        sampler.releaseDuration = 0.45
     }
 
     private func configureSession() throws {
@@ -190,6 +217,14 @@ final class Conductor {
         // Playback only: the recorder taps a node inside the graph rather than
         // the microphone, so the app never needs record permission.
         try Settings.session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        // Asked for before the session is activated, which is when the
+        // preference is read. Left to the system the buffer can run to 20ms or
+        // more: unremarkable for playing a file back, but on an instrument it
+        // is the gap between the key going down and the note arriving. It is a
+        // request rather than a setting - the hardware and the current route
+        // decide what is actually granted - so a refusal is not fatal and the
+        // session still goes active.
+        try? Settings.session.setPreferredIOBufferDuration(0.005)
         try Settings.session.setActive(true)
         #endif
     }
@@ -329,6 +364,7 @@ final class Conductor {
             try recorder.record()
             scoreRecorder.reset()
             recordingStart = now
+            finishedTakeDuration = 0
             currentScore = MelodyScore()
             transport = .recording
         } catch {
@@ -341,6 +377,7 @@ final class Conductor {
         let elapsed = now - recordingStart
         recorder.stop()
         transport = .idle
+        finishedTakeDuration = elapsed
         currentScore = scoreRecorder.finish(at: elapsed)
         if let file = recorder.audioFile, file.length > 0 {
             try? player.load(file: file)
@@ -395,6 +432,7 @@ final class Conductor {
         setSustain(false)
         discardTakeFile()
         try? recorder?.reset()
+        finishedTakeDuration = 0
         currentScore = MelodyScore()
         hasRecording = false
         transport = .idle

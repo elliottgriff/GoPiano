@@ -17,6 +17,7 @@ struct ContentView: View {
     /// keyboard rather than one octave of enormous keys.
     @AppStorage("hasChosenOctaveCount") private var hasChosenOctaveCount = false
 
+    /// Mirrors `Conductor.takeDuration` so the readout redraws as it ticks.
     @State private var elapsed: TimeInterval = 0
     @State private var showRecordings = false
     @State private var saveConfirmation: String?
@@ -86,7 +87,11 @@ struct ContentView: View {
             clampOctave()
         }
         .onReceive(tick) { _ in
-            if conductor.isRecording { elapsed += 0.05 }
+            // Read off the recorder's own clock rather than adding 0.05 to a
+            // counter: ticks arrive late under load, so a late tick now shows
+            // up as a less frequent update instead of a short take.
+            let shown = conductor.takeDuration
+            if shown != elapsed { elapsed = shown }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { conductor.allNotesOff() }
