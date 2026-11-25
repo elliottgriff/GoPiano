@@ -36,6 +36,13 @@ final class Conductor {
     private(set) var transport: Transport = .idle
     private(set) var isInstrumentLoaded = false
     private(set) var hasRecording = false
+    /// An imported melody is loaded: notes with no audio behind them, which
+    /// the sampler has to perform. Kept apart from `hasRecording`, which means
+    /// there is a take that can be saved and shared as sound.
+    private(set) var hasSequence = false
+
+    /// Whether there is anything for Play to play, whichever kind it is.
+    var canPlay: Bool { hasRecording || hasSequence }
     private(set) var activeNotes: Set<UInt8> = []
     /// Keys lit by playback rather than by a finger. Replay only highlights -
     /// the sound comes from the recording, so the sampler is left alone.
@@ -67,6 +74,16 @@ final class Conductor {
     /// The score matching whatever the player currently holds.
     private(set) var currentScore = MelodyScore()
     private var replayTimer: Timer?
+
+    // Sequencer state - see "Performing a melody" below.
+    private var sequence: [SequencedEvent] = []
+    private var sequenceIndex = 0
+    private var sequenceStart: TimeInterval = 0
+    private var sequenceTimer: Timer?
+    /// Notes the sequencer has sounded and not yet released, counted, because a
+    /// file can hold the same note twice at once; it only goes quiet when the
+    /// last of them ends.
+    private var sequencedNotes: [UInt8: Int] = [:]
 
     private var now: TimeInterval { CACurrentMediaTime() }
 
@@ -177,6 +194,7 @@ final class Conductor {
         allNotesOff()
         player.stop()
         stopReplay()
+        stopSequence()
         transport = .idle
     }
 
@@ -357,6 +375,8 @@ final class Conductor {
         // Nothing else deletes it, so it goes now that it is being replaced.
         discardTakeFile()
         stopReplay()
+        stopSequence()
+        hasSequence = false
         // No point stopping a player that was never scheduled.
         if player.isPlaying { player.stop() }
         do {
@@ -390,14 +410,18 @@ final class Conductor {
         case .playing:
             player.stop()
             stopReplay()
+            stopSequence()
             transport = .idle
         case .recording:
             break
         case .idle:
-            guard hasRecording else { return }
-            player.play()
-            transport = .playing
-            startReplay()
+            if hasSequence {
+                startSequence()
+            } else if hasRecording {
+                player.play()
+                transport = .playing
+                startReplay()
+            }
         }
     }
 
@@ -406,6 +430,7 @@ final class Conductor {
         guard transport == .playing else { stopReplay(); return }
         player.stop()
         stopReplay()
+        stopSequence()
         transport = .idle
     }
 
@@ -419,15 +444,35 @@ final class Conductor {
     func load(_ recording: Recording) throws {
         player.stop()
         stopReplay()
+        stopSequence()
         try player.load(url: recording.url)
         currentScore = RecordingStore.shared.score(for: recording) ?? MelodyScore()
         hasRecording = true
+        hasSequence = false
+        transport = .idle
+    }
+
+    /// Loads a melody that is notes alone - an imported MIDI file - for the
+    /// keyboard to perform. There is no audio behind it, so it plays through
+    /// the sampler, and there is nothing to save or share as sound.
+    func load(_ score: MelodyScore) {
+        player.stop()
+        stopReplay()
+        stopSequence()
+        currentScore = score
+        sequence = Self.events(for: score)
+        hasRecording = false
+        hasSequence = !score.isEmpty
+        finishedTakeDuration = score.duration
         transport = .idle
     }
 
     func reset() {
         player.stop()
         stopReplay()
+        stopSequence()
+        hasSequence = false
+        sequence = []
         allNotesOff()
         setSustain(false)
         discardTakeFile()
@@ -478,6 +523,100 @@ final class Conductor {
     private func stopReplay() {
         replayTimer?.invalidate()
         replayTimer = nil
+        if !replayNotes.isEmpty { replayNotes = [] }
+    }
+
+    // MARK: - Performing a melody
+
+    /// Replay above only lights keys over a recording that makes its own sound.
+    /// An imported melody has no recording, so this plays it: it walks the
+    /// notes against its own clock and drives the sampler, the way fingers do.
+    private struct SequencedEvent {
+        let time: TimeInterval
+        let isOff: Bool
+        let note: UInt8
+        let velocity: UInt8
+    }
+
+    /// How late a note may be and still be played. Past this it is skipped -
+    /// after the app has been in the background, say, or the main thread was
+    /// held up - rather than everything that was missed sounding at once.
+    private static let latestPlayableNote: TimeInterval = 0.1
+
+    private static func events(for score: MelodyScore) -> [SequencedEvent] {
+        var events: [SequencedEvent] = []
+        events.reserveCapacity(score.spans.count * 2)
+        for span in score.spans {
+            events.append(SequencedEvent(time: span.start, isOff: false,
+                                         note: span.note, velocity: span.velocity))
+            events.append(SequencedEvent(time: span.end, isOff: true,
+                                         note: span.note, velocity: 0))
+        }
+        // Releases go before presses at the same instant, so a note struck
+        // again the moment it ends is not switched straight back off.
+        return events.sorted { ($0.time, $0.isOff ? 0 : 1) < ($1.time, $1.isOff ? 0 : 1) }
+    }
+
+    private func startSequence() {
+        guard hasSequence, !sequence.isEmpty else { return }
+        stopSequence()
+        sequenceStart = now
+        transport = .playing
+        // Common mode, so it keeps time while the user is touching the screen.
+        // Called directly rather than through a Task: a hop to the main actor
+        // costs a little more timing on every tick, and the run loop is
+        // already on the main thread.
+        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+            self?.tickSequence()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        sequenceTimer = timer
+        tickSequence()
+    }
+
+    private func tickSequence() {
+        guard transport == .playing, hasSequence else { stopSequence(); return }
+        let elapsed = now - sequenceStart
+        var keysChanged = false
+
+        while sequenceIndex < sequence.count, sequence[sequenceIndex].time <= elapsed {
+            let event = sequence[sequenceIndex]
+            sequenceIndex += 1
+
+            if event.isOff {
+                guard let held = sequencedNotes[event.note] else { continue }
+                if held > 1 {
+                    sequencedNotes[event.note] = held - 1
+                } else {
+                    sequencedNotes[event.note] = nil
+                    sampler.stop(noteNumber: event.note)
+                    keysChanged = true
+                }
+            } else {
+                guard elapsed - event.time <= Self.latestPlayableNote else { continue }
+                let held = sequencedNotes[event.note, default: 0]
+                sampler.play(noteNumber: event.note, velocity: event.velocity)
+                sequencedNotes[event.note] = held + 1
+                if held == 0 { keysChanged = true }
+            }
+        }
+
+        if keysChanged { replayNotes = Set(sequencedNotes.keys) }
+
+        if sequenceIndex >= sequence.count {
+            stopSequence()
+            transport = .idle
+        }
+    }
+
+    /// Stops the performance and lets go of anything it was holding. Safe to
+    /// call when nothing is playing.
+    private func stopSequence() {
+        sequenceTimer?.invalidate()
+        sequenceTimer = nil
+        for note in sequencedNotes.keys { sampler.stop(noteNumber: note) }
+        sequencedNotes.removeAll()
+        sequenceIndex = 0
         if !replayNotes.isEmpty { replayNotes = [] }
     }
 
