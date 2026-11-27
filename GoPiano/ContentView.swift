@@ -332,9 +332,12 @@ struct ContentView: View {
     /// nothing shifts under a thumb when they arrive.
     private var transport: some View {
         HStack(spacing: 6) {
+            // Also the way to wipe the music page after playing freely, which
+            // leaves notes there but no take - on iPad, where the page shows.
             panelIcon("trash", enabled: true) { discardTapped() }
-                .accessibilityLabel(conductor.hasSequence ? "Clear" : "Discard take")
-                .contextual(conductor.canPlay || conductor.isRecording)
+                .accessibilityLabel(conductor.hasSequence || !conductor.canPlay ? "Clear" : "Discard take")
+                .contextual(conductor.canPlay || conductor.isRecording
+                            || (isPad && conductor.hasWrittenNotes))
 
             recordButton
 
@@ -424,6 +427,9 @@ struct ContentView: View {
     private func discardTapped() {
         if conductor.isRecording || conductor.hasUnsavedTake {
             isConfirmingReset = true
+        } else if !conductor.canPlay {
+            // Nothing recorded: just the notes played freely onto the page.
+            conductor.clearPage()
         } else {
             resetTake()
         }

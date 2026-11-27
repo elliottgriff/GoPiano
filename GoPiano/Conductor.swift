@@ -396,6 +396,20 @@ final class Conductor {
         if transport == .recording, takeTempo != nil { refreshLivePage() }
     }
 
+    /// Notes played freely onto the page, with no take behind them - all a
+    /// player has to clear when nothing's been recorded.
+    var hasWrittenNotes: Bool {
+        if case .written(let chords) = page { return !chords.isEmpty }
+        return false
+    }
+
+    /// Wipes the freely played notes off the page, leaving everything else -
+    /// the pedal, the instrument - as it is.
+    func clearPage() {
+        page = .written([])
+        pageIsLive = true
+    }
+
     /// Writes a played note onto the page. A very long session keeps its most
     /// recent stretch rather than growing without end.
     private func write(_ note: UInt8, at time: TimeInterval) {
