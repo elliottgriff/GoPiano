@@ -2,8 +2,9 @@
 //  Conductor.swift
 //  GoPiano
 //
-//  Owns the audio graph: a multi-sampled piano into reverb, tapped by a
-//  recorder, with a player for listening back.
+//  Owns the audio graph: a multi-sampled piano into reverb - a room always,
+//  a hall while the pedal is down - tapped by a recorder, with a player for
+//  listening back.
 //
 
 import AVFoundation
@@ -29,6 +30,15 @@ final class Conductor {
     private let sampler = Sampler()
     private let instrumentBus: Mixer
     private let reverb: Reverb
+    /// The pedal's ring. With the dampers lifted a piano's strings sound on
+    /// and set the rest of the instrument humming; a hall reverb, faded in
+    /// only while the pedal is down, stands in for that. Wholly wet, so the
+    /// room above still sets how dry the piano is.
+    private let hall: Reverb
+    private let hallSend: Mixer
+    /// The piano and both reverbs: what's recorded.
+    private let instrumentOut: Mixer
+    private var hallFade: Timer?
     private let player = AudioPlayer()
     /// The metronome. It joins the graph after the reverb and away from the
     /// recorder's tap, so the click is heard but never recorded.
@@ -140,7 +150,11 @@ final class Conductor {
     init() {
         instrumentBus = Mixer(sampler)
         reverb = Reverb(instrumentBus)
-        mainBus = Mixer(reverb, player, click)
+        hall = Reverb(instrumentBus)
+        hallSend = Mixer(hall)
+        hallSend.volume = 0
+        instrumentOut = Mixer(reverb, hallSend)
+        mainBus = Mixer(instrumentOut, player, click)
         engine.output = mainBus
 
         player.isLooping = false
@@ -164,11 +178,10 @@ final class Conductor {
             try engine.start()
             // Effect parameters are only writable once the engine has
             // instantiated the underlying audio units.
-            // A hall rather than a room: the samples die away within a second
-            // and a half, and the hall's longer tail is what lets a note ring
-            // on the way a piano's does.
-            reverb.loadFactoryPreset(.largeHall)
+            reverb.loadFactoryPreset(.mediumRoom)
             reverb.dryWetMix = AUValue(reverbMix)
+            hall.loadFactoryPreset(.largeHall)
+            hall.dryWetMix = 1
 
             // Set before the samples are handed over: swapping in new sampler
             // data copies the envelope settings across from the current one,
@@ -177,7 +190,7 @@ final class Conductor {
 
             loadInstrument()
             makeClickSounds()
-            recorder = try NodeRecorder(node: reverb)
+            recorder = try NodeRecorder(node: instrumentOut)
             observeAudioSession()
         } catch {
             startupError = error.localizedDescription
@@ -272,9 +285,8 @@ final class Conductor {
     /// current sampler, and writes made straight afterwards are rejected.
     private func applySamplerParameters() {
         sampler.masterVolume = 0.9
-        // Long enough that a note let go rings on into its own decay rather
-        // than being cut off; the samples have faded by 1.4s regardless.
-        sampler.releaseDuration = 1.0
+        // The dampers: a key let go without the pedal stops soon after.
+        sampler.releaseDuration = 0.45
     }
 
     private func configureSession() throws {
@@ -403,6 +415,28 @@ final class Conductor {
         guard on != isSustaining else { return }
         isSustaining = on
         sampler.sustainPedal(pedalDown: on)
+        // Down, the ring swells in; up, the dampers fall and it's gone soon
+        // after - quickly, but not so suddenly that it clicks.
+        fadeHall(to: on ? Self.pedalRing : 0, over: on ? 0.15 : 0.35)
+    }
+
+    /// How loud the pedal's ring is beside the piano.
+    private static let pedalRing: AUValue = 0.45
+
+    /// Mixer volume can't be ramped by the engine, so it's stepped here, often
+    /// enough that the steps aren't heard.
+    private func fadeHall(to target: AUValue, over duration: TimeInterval) {
+        hallFade?.invalidate()
+        let from = hallSend.volume
+        let began = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let progress = min(1, (CACurrentMediaTime() - began) / duration)
+            self.hallSend.volume = from + (target - from) * AUValue(progress)
+            if progress >= 1 { timer.invalidate() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hallFade = timer
     }
 
     /// Plays a note and releases it shortly after. VoiceOver activates a key
