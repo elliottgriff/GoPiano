@@ -88,6 +88,8 @@ struct MelodyVideoExporter {
 
         guard let pool = adaptor.pixelBufferPool else { throw MelodyVideoError.setupFailed }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
+        // The keys light as they do in the app when the video is made.
+        let colourful = KeyboardRenderer.coloursOn
 
         for frame in 0..<frameCount {
             await waitUntilReady(input)
@@ -116,6 +118,7 @@ struct MelodyVideoExporter {
                 KeyboardRenderer.draw(layout: layout,
                                       pressed: pressed,
                                       showsLabels: true,
+                                      colourful: colourful,
                                       in: context)
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])

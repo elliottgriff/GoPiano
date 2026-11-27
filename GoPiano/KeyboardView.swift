@@ -12,6 +12,7 @@ struct KeyboardCanvas: View {
     let octaveCount: Int
     let pressed: Set<UInt8>
     var showsLabels: Bool = true
+    @AppStorage(KeyboardRenderer.coloursKey) private var noteColours = true
 
     var body: some View {
         Canvas { context, size in
@@ -22,6 +23,7 @@ struct KeyboardCanvas: View {
                 KeyboardRenderer.draw(layout: layout,
                                       pressed: pressed,
                                       showsLabels: showsLabels,
+                                      colourful: noteColours,
                                       in: cgContext)
             }
         }

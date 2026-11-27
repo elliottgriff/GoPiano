@@ -216,8 +216,10 @@ struct MeteredMusic: Equatable {
         /// One staff space; everything is measured in these.
         let space: CGFloat
         let width: CGFloat
+        /// Each note's letter name in a strip under the staff.
+        var showsNames = false
 
-        var systemHeight: CGFloat { space * 18 }
+        var systemHeight: CGFloat { space * (18 + (showsNames ? SheetMusic.nameStrip : 0)) }
         var margin: CGFloat { space * 1.2 }
         var notesStart: CGFloat { margin + space * 5 }
         var timeSignatureWidth: CGFloat { space * 3 }
@@ -322,6 +324,9 @@ struct MeteredMusic: Equatable {
         // Ties waiting for the next chord on their staff, which may be in the
         // next bar.
         var pendingTies: [Bool: (heads: [UInt8: CGPoint], below: Bool)] = [:]
+        // Names by bar and beat, both staves together; a note carried on by a
+        // tie was named where it was struck.
+        var names: [Int: [Double: (x: CGFloat, notes: [UInt8])]] = [:]
 
         var x = startX
         for (offset, index) in range.enumerated() {
@@ -348,6 +353,10 @@ struct MeteredMusic: Equatable {
                         let restX = item.fullBarRest ? x + measureWidth / 2 - space * 0.6 : noteX
                         drawRest(item, x: restX, treble: treble, staff: staff, style: style, in: context)
                         continue
+                    }
+                    if !item.tiedFromPrevious {
+                        let centre = noteX + space * (item.value.base >= 4 ? 0.775 : 0.625)
+                        names[index, default: [:]][item.start, default: (centre, [])].notes += item.notes
                     }
                     let drawn = SheetMusic.drawStack(item.notes, treble: treble, x: noteX,
                                                      staff: staff, style: style, line: line,
@@ -377,6 +386,10 @@ struct MeteredMusic: Equatable {
                 context.addLine(to: CGPoint(x: x, y: staff.bassBottom))
                 context.strokePath()
             }
+        }
+
+        if layout.showsNames {
+            SheetMusic.drawNames(names.values.flatMap(\.values), staff: staff, style: style, in: context)
         }
 
         // A tie that carries over to the next line runs off the end of this one.

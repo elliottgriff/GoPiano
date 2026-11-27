@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct RecordingsView: View {
@@ -420,6 +421,7 @@ struct ExportedFile: Identifiable {
 struct ExportShareSheet: View {
     let file: ExportedFile
     @Environment(\.dismiss) private var dismiss
+    @State private var printError: String?
 
     var body: some View {
         NavigationStack {
@@ -433,9 +435,24 @@ struct ExportShareSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                // Sheet music is mostly wanted on paper, so printing gets its
+                // own button rather than hiding in the share sheet's list.
+                if file.kind == .sheetMusic {
+                    Button(action: printFile) {
+                        Label("Print", systemImage: "printer")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Spacer()
             }
             .padding()
+            .alert("Couldn't Print", isPresented: Binding(get: { printError != nil },
+                                                          set: { if !$0 { printError = nil } })) {
+                Button("OK", role: .cancel) { printError = nil }
+            } message: {
+                Text(printError ?? "")
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -445,6 +462,22 @@ struct ExportShareSheet: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    private func printFile() {
+        guard UIPrintInteractionController.canPrint(file.url) else {
+            printError = "This file can't be printed."
+            return
+        }
+        let info = UIPrintInfo.printInfo()
+        info.outputType = .general
+        info.jobName = file.url.deletingPathExtension().lastPathComponent
+        let controller = UIPrintInteractionController.shared
+        controller.printInfo = info
+        controller.printingItem = file.url
+        controller.present(animated: true) { _, _, error in
+            if let error { printError = error.localizedDescription }
+        }
     }
 
     private var title: String {

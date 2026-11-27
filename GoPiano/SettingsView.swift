@@ -13,6 +13,8 @@ struct SettingsView: View {
     @Environment(Conductor.self) private var conductor
     @Binding var showsLabels: Bool
     @AppStorage("touchDynamics") private var touchDynamics = true
+    @AppStorage(KeyboardRenderer.coloursKey) private var noteColours = true
+    @AppStorage(SheetMusic.namesKey) private var sheetNoteNames = false
     @AppStorage(Conductor.metronomeKey) private var metronome = false
     @AppStorage(Conductor.tempoKey) private var tempo = 100
     @AppStorage(Conductor.beatsPerBarKey) private var beatsPerBar = 4
@@ -29,6 +31,16 @@ struct SettingsView: View {
                 // "Note Names" and "Reverb" say what they do; a caption under
                 // each only costs height the popover does not have.
                 Toggle("Note Names", isOn: $showsLabels)
+
+                Toggle(isOn: $noteColours) {
+                    Text("Note Colours")
+                    Text("Each note its own colour, on the keys and the music")
+                }
+
+                Toggle(isOn: $sheetNoteNames) {
+                    Text("Names on Sheet Music")
+                    Text("Each note's letter under the staff, here and in PDFs")
+                }
 
                 // This one does need its line: "Touch Dynamics" alone doesn't
                 // say what the touch is measured by.
@@ -78,7 +90,7 @@ struct SettingsView: View {
         // Wide enough that the dynamics line stays on one line: on two, it
         // pushed the end of the licence credit below the popover's edge.
         // Scrolls on a phone in landscape; a popover can't be taller than that.
-        .frame(idealWidth: 370, idealHeight: 470)
+        .frame(idealWidth: 370, idealHeight: 600)
         // Dark like the instrument it sits over, not a bright card on top.
         .preferredColorScheme(.dark)
     }

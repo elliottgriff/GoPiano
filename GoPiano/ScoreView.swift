@@ -17,21 +17,29 @@ import SwiftUI
 
 struct ScoreView: View {
     @Environment(Conductor.self) private var conductor
+    @AppStorage(KeyboardRenderer.coloursKey) private var noteColours = true
+    @AppStorage(SheetMusic.namesKey) private var showsNames = false
 
     var body: some View {
         GeometryReader { proxy in
             // Sized so a line and a half shows at once: the line in hand, and
             // the end of the one before it for context.
-            let space = min(proxy.size.height / 20, 16)
+            let lines = 20 + (showsNames ? SheetMusic.nameStrip : 0)
+            let space = min(proxy.size.height / lines, 16)
+            let style = SheetMusic.Style.screen(coloured: noteColours)
             switch conductor.page {
             case .written(let chords):
                 WrittenPage(chords: chords,
-                            layout: SheetMusic.Layout(space: space, width: proxy.size.width),
+                            layout: SheetMusic.Layout(space: space, width: proxy.size.width,
+                                                      showsNames: showsNames),
+                            style: style,
                             isLive: conductor.pageIsLive,
                             current: currentChord(in: chords))
             case .metered(let music):
                 MeteredPage(music: music,
-                            layout: MeteredMusic.Layout(space: space, width: proxy.size.width),
+                            layout: MeteredMusic.Layout(space: space, width: proxy.size.width,
+                                                        showsNames: showsNames),
+                            style: style,
                             isLive: conductor.isRecording,
                             current: currentPosition(in: music))
             }
@@ -65,6 +73,7 @@ struct ScoreView: View {
 private struct WrittenPage: View {
     let chords: [SheetChord]
     let layout: SheetMusic.Layout
+    let style: SheetMusic.Style
     let isLive: Bool
     let current: Int?
 
@@ -80,7 +89,7 @@ private struct WrittenPage: View {
                         Canvas { context, _ in
                             context.withCGContext { cgContext in
                                 SheetMusic.drawSystem(lineChords, layout: layout, top: 0,
-                                                      style: .screen, highlighted: highlighted,
+                                                      style: style, highlighted: highlighted,
                                                       endsSong: ends, in: cgContext)
                             }
                         }
@@ -111,6 +120,7 @@ private struct WrittenPage: View {
 private struct MeteredPage: View {
     let music: MeteredMusic
     let layout: MeteredMusic.Layout
+    let style: SheetMusic.Style
     /// Being written to the click: keep the newest bar in view.
     let isLive: Bool
     let current: MeteredMusic.Position?
@@ -125,7 +135,7 @@ private struct MeteredPage: View {
                         Canvas { context, _ in
                             context.withCGContext { cgContext in
                                 MeteredMusic.drawSystem(music, measures: range, layout: layout,
-                                                        top: 0, style: .screen,
+                                                        top: 0, style: style,
                                                         highlighted: highlighted, in: cgContext)
                             }
                         }

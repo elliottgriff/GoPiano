@@ -54,6 +54,15 @@ struct ContentView: View {
         return min(3, max(1, (whiteKeys - 1) / 7))
     }
 
+    /// The narrowest the keyboard goes. An iPad keeps at least two octaves,
+    /// so the keys never grow tall enough to push the music off the screen;
+    /// a phone, with no music above its keys, can go down to one.
+    private var minOctaves: Int {
+        isPad ? min(2, maxOctaves) : 1
+    }
+
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
     private var screenSize: CGSize {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow?.bounds.size }
@@ -168,14 +177,17 @@ struct ContentView: View {
 
     /// The keys at their proper proportions, and the music written out in the
     /// space that leaves above them. On a phone the keys need every point of
-    /// the height, so there is no room for a score and none is shown.
+    /// the height, so there is no room for a score and none is shown. On an
+    /// iPad the music is always there: where the keys would leave it too
+    /// little room, they give up some length instead.
     private var keyboardArea: some View {
         GeometryReader { proxy in
             let whiteKeys = CGFloat(octaveCount * 7 + 1)
-            let keyLength = min(proxy.size.height,
-                                proxy.size.width / whiteKeys * PianoLayout.longestKeyRatio)
+            let natural = min(proxy.size.height,
+                              proxy.size.width / whiteKeys * PianoLayout.longestKeyRatio)
+            let keyLength = isPad ? min(natural, proxy.size.height - Self.shortestScore) : natural
             let scoreHeight = proxy.size.height - keyLength
-            let showsScore = scoreHeight >= Self.shortestScore
+            let showsScore = isPad || scoreHeight >= Self.shortestScore
             VStack(spacing: 0) {
                 if showsScore {
                     ScoreView().frame(height: scoreHeight)
@@ -281,17 +293,18 @@ struct ContentView: View {
     }
 
     /// The notes on screen, between the buttons that move them - a stepper, read
-    /// as one. Tapping it switches between one octave and as many as fit. It
+    /// as one. Tapping it switches between the narrowest keyboard - one octave
+    /// on a phone, two on an iPad - and as many octaves as fit. It
     /// replaces an unlabelled switch that did the same thing without saying so,
     /// and it is the only place that says where on the keyboard you are once
     /// note names are off.
     private var rangeButton: some View {
         let low = PianoLayout.name(for: UInt8(clamping: baseMIDINote + firstOctave * 12))
         let high = PianoLayout.name(for: UInt8(clamping: baseMIDINote + (firstOctave + octaveCount) * 12))
-        let canWiden = maxOctaves > 1
+        let canWiden = maxOctaves > minOctaves
         return Button {
             hasChosenOctaveCount = true
-            octaveCount = octaveCount > 1 ? 1 : maxOctaves
+            octaveCount = octaveCount > minOctaves ? minOctaves : maxOctaves
             clampOctave()
         } label: {
             Text("\(low)–\(high)")
@@ -307,7 +320,9 @@ struct ContentView: View {
         .opacity(canWiden ? 1 : 0.5)
         .accessibilityLabel("Keyboard range")
         .accessibilityValue("\(low) to \(high)")
-        .accessibilityHint(octaveCount > 1 ? "Shows one octave" : "Shows \(maxOctaves) octaves")
+        .accessibilityHint(octaveCount > minOctaves
+                           ? (minOctaves == 1 ? "Shows one octave" : "Shows \(minOctaves) octaves")
+                           : "Shows \(maxOctaves) octaves")
     }
 
     // MARK: The take
@@ -468,7 +483,7 @@ struct ContentView: View {
 
     private func clampOctave() {
         // A keyboard wider than the screen can show would just squash the keys.
-        octaveCount = min(max(1, octaveCount), maxOctaves)
+        octaveCount = min(max(minOctaves, octaveCount), maxOctaves)
         firstOctave = min(max(0, firstOctave), maxFirstOctave)
     }
 
@@ -476,7 +491,7 @@ struct ContentView: View {
     /// phone starts on one, where two are thin enough to choose deliberately.
     private func applyDefaultWidth() {
         guard !hasChosenOctaveCount else { return }
-        if UIDevice.current.userInterfaceIdiom == .pad { octaveCount = maxOctaves }
+        if isPad { octaveCount = maxOctaves }
     }
 
     /// Moves the keyboard to where the imported melody is played, as widely as

@@ -83,8 +83,15 @@ enum KeyboardRenderer {
                                  (1, hsb(hue, 0.80, 0.78))]))
     }
 
-    private static func heldColours(for note: UInt8) -> HeldColours {
-        held[Int(note) % 12]
+    /// With note colours off, every held key takes the one red - C's.
+    private static func heldColours(for note: UInt8, colourful: Bool) -> HeldColours {
+        held[colourful ? Int(note) % 12 : 0]
+    }
+
+    /// Where the note-colours setting is kept. On unless turned off.
+    static let coloursKey = "noteColours"
+    static var coloursOn: Bool {
+        UserDefaults.standard.object(forKey: coloursKey) as? Bool ?? true
     }
 
     /// A note's colour on its own, for anything that shows notes away from
@@ -106,6 +113,7 @@ enum KeyboardRenderer {
     static func draw(layout: PianoLayout,
                      pressed: Set<UInt8>,
                      showsLabels: Bool,
+                     colourful: Bool = true,
                      in context: CGContext) {
         let size = layout.size
         let whiteWidth = layout.whiteKeyWidth
@@ -135,7 +143,7 @@ enum KeyboardRenderer {
             let held = pressed.contains(key.note)
             let rect = key.frame.insetBy(dx: gap / 2, dy: 0)
             let body = bottomRounded(rect, radius: whiteWidth * 0.07)
-            let colours = heldColours(for: key.note)
+            let colours = heldColours(for: key.note, colourful: colourful)
             fill(body, in: rect, with: held ? colours.ivory : ivory, context: context)
 
             // A held key has sunk: less of its front face shows.
@@ -191,7 +199,7 @@ enum KeyboardRenderer {
             let width = frame.width
 
             let body = bottomRounded(frame, radius: width * 0.10)
-            let colours = heldColours(for: key.note)
+            let colours = heldColours(for: key.note, colourful: colourful)
             fill(body, in: frame, with: held ? colours.ebonyBody : ebonyBody, context: context)
 
             let slope = frame.height * (held ? 0.05 : 0.10)

@@ -111,9 +111,12 @@ enum SheetMusic {
         /// the page is measured in these, so it scales to any size.
         let space: CGFloat
         let width: CGFloat
+        /// Each note's letter name in a strip under the staff.
+        var showsNames = false
 
-        /// A grand staff, with room above and below for ledger lines.
-        var systemHeight: CGFloat { space * 18 }
+        /// A grand staff, with room above and below for ledger lines, and
+        /// the strip of note names when they're shown.
+        var systemHeight: CGFloat { space * (18 + (showsNames ? SheetMusic.nameStrip : 0)) }
         var margin: CGFloat { space * 1.2 }
         /// Where the first note goes, after the clefs.
         var notesStart: CGFloat { margin + space * 5 }
@@ -155,6 +158,11 @@ enum SheetMusic {
                                   staff: UIColor(white: 1, alpha: 0.3).cgColor,
                                   noteColour: KeyboardRenderer.noteColour(for:),
                                   highlight: UIColor(white: 1, alpha: 0.12).cgColor)
+        /// The screen's look with every note in ink, when note colours are off.
+        static func screen(coloured: Bool) -> Style {
+            coloured ? screen : Style(ink: screen.ink, staff: screen.staff,
+                                      noteColour: nil, highlight: screen.highlight)
+        }
         /// The shared page: plain ink on paper the colour of the white keys,
         /// so it reads and prints as sheet music does.
         static let page = Style(ink: SheetMusicPDF.ink.cgColor,
@@ -197,9 +205,11 @@ enum SheetMusic {
         drawStaves(staff, left: left, right: closes ? finalBar : right, style: style, line: line, in: context)
 
         x = layout.notesStart
+        var names: [(x: CGFloat, notes: [UInt8])] = []
         for chord in chords {
             let hasSharp = chord.notes.contains(where: Staff.isSharp)
             let noteX = x + space * (hasSharp ? 1.3 : 0.6)
+            names.append((noteX + space * 0.625, chord.notes))
             let treble = chord.notes.filter { $0 >= 60 }
             let bass = chord.notes.filter { $0 < 60 }
             if !treble.isEmpty {
@@ -213,6 +223,47 @@ enum SheetMusic {
 
         if closes {
             drawFinalBar(at: finalBar, staff: staff, style: style, line: line, in: context)
+        }
+        if layout.showsNames {
+            drawNames(names, staff: staff, style: style, in: context)
+        }
+    }
+
+    // MARK: - Note names
+
+    /// Where the setting is kept.
+    static let namesKey = "sheetNoteNames"
+
+    /// The strip of names under a system, in staff spaces: room for a chord
+    /// of four, one name above the next.
+    static let nameStrip: CGFloat = 3.3
+
+    /// A note's letter, spelled with sharps as the staff writes it.
+    static func name(of note: UInt8) -> String {
+        ["C", "C\u{266F}", "D", "D\u{266F}", "E", "F", "F\u{266F}", "G", "G\u{266F}", "A", "A\u{266F}", "B"][Int(note) % 12]
+    }
+
+    /// Each column's names under the staff, highest note at the top, so a
+    /// chord reads the way it sits on the staff. In the note's colour when
+    /// notes are coloured, so the name matches its head and its key.
+    static func drawNames(_ columns: [(x: CGFloat, notes: [UInt8])],
+                          staff: Staff,
+                          style: Style,
+                          in context: CGContext) {
+        let space = staff.space
+        // Clear of ledger lines hanging below the bass staff.
+        let top = staff.bassBottom + space * 2.1
+        for column in columns where !column.notes.isEmpty {
+            let notes = Array(Set(column.notes)).sorted(by: >)
+            // A big chord squeezes into the strip rather than spilling out.
+            let scale = min(1, 4 / CGFloat(notes.count))
+            let lineHeight = space * 1.05 * scale
+            for (index, note) in notes.enumerated() {
+                drawText(name(of: note), size: space * 0.95 * scale,
+                         centre: CGPoint(x: column.x, y: top + lineHeight * (CGFloat(index) + 0.5)),
+                         colour: style.noteColour?(note) ?? style.ink,
+                         weight: .medium, in: context)
+            }
         }
     }
 
@@ -535,7 +586,8 @@ enum SheetMusicPDF {
     /// `length` is the recording's own, where there is one, so the page agrees
     /// with the library; otherwise the notes' is used.
     static func write(_ score: MelodyScore, named name: String, subtitle: String,
-                      length: TimeInterval? = nil) throws -> URL {
+                      length: TimeInterval? = nil,
+                      showsNames: Bool = UserDefaults.standard.bool(forKey: SheetMusic.namesKey)) throws -> URL {
         guard !score.isEmpty else { throw SheetMusicError.noNotes }
 
         // Letter where it's the norm, A4 everywhere else.
@@ -554,7 +606,7 @@ enum SheetMusicPDF {
         let drawSystem: (Int, CGFloat, CGContext) -> Void
         switch SheetPage(score: score) {
         case .metered(let music):
-            let layout = MeteredMusic.Layout(space: space, width: width)
+            let layout = MeteredMusic.Layout(space: space, width: width, showsNames: showsNames)
             let systems = layout.systems(for: music)
             systemCount = systems.count
             systemHeight = layout.systemHeight
@@ -563,7 +615,7 @@ enum SheetMusicPDF {
                                         top: top, style: .page, in: context)
             }
         case .written(let chords):
-            let layout = SheetMusic.Layout(space: space, width: width)
+            let layout = SheetMusic.Layout(space: space, width: width, showsNames: showsNames)
             let systems = layout.systems(for: chords)
             systemCount = systems.count
             systemHeight = layout.systemHeight
