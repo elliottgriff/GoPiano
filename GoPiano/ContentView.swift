@@ -8,6 +8,8 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(Conductor.self) private var conductor
+    @Environment(\.colorScheme) private var colorScheme
+    private var finish: Finish { Finish(colorScheme) }
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage("firstOctave") private var firstOctave = 3
@@ -80,7 +82,7 @@ struct ContentView: View {
         }
         // The colour runs under the home indicator while the content stays
         // inside the safe area, so the front edge reads as one strip.
-        .background(Self.bezelColor.ignoresSafeArea())
+        .background(finish.bezel.ignoresSafeArea())
         .overlay(alignment: .top) { startupError }
         .sheet(isPresented: $showRecordings, onDismiss: playImported) {
             RecordingsView(onImport: { imported = ($0, $1) })
@@ -161,19 +163,16 @@ struct ContentView: View {
         // and only the last one presents.
         .sheet(item: $sharedFile) { ExportShareSheet(file: $0) }
         .background {
-            // Black lacquer, like the case of the instrument, with a catch of
-            // light along its top edge. It meets the felt drawn at the back
-            // of the keys.
-            LinearGradient(colors: [Color(white: 0.14), Color(white: 0.07)],
-                           startPoint: .top, endPoint: .bottom)
+            // The case of the instrument - black lacquer, or ivory in light
+            // mode - with a catch of light along its top edge. It meets the
+            // felt drawn at the back of the keys.
+            LinearGradient(colors: finish.bar, startPoint: .top, endPoint: .bottom)
                 .overlay(alignment: .top) {
-                    Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                    Rectangle().fill(finish.barHighlight).frame(height: 1)
                 }
                 .ignoresSafeArea(edges: [.top, .horizontal])
         }
     }
-
-    static let bezelColor = Color(white: 0.06)
 
     /// The keys at their proper proportions, and the music written out in the
     /// space that leaves above them. On a phone the keys need every point of
@@ -198,7 +197,7 @@ struct ContentView: View {
                     .frame(height: showsScore ? keyLength : proxy.size.height)
             }
         }
-        .background(Self.bezelColor)
+        .background(finish.bezel)
     }
 
     /// Below this a grand staff is too cramped to read, and the keys may as
@@ -208,11 +207,11 @@ struct ContentView: View {
     /// A front edge below the keys. Devices with a home indicator get most of
     /// this from the safe area; this is the minimum for those without one.
     private var bezel: some View {
-        LinearGradient(colors: [Color(white: 0.10), Self.bezelColor],
+        LinearGradient(colors: [finish.bezelEdge, finish.bezel],
                        startPoint: .top, endPoint: .bottom)
             .frame(height: 14)
             .overlay(alignment: .top) {
-                Rectangle().fill(Color.black.opacity(0.5)).frame(height: 1)
+                Rectangle().fill(finish.bezelLine).frame(height: 1)
             }
     }
 
@@ -229,23 +228,26 @@ struct ContentView: View {
     private var pedal: some View {
         let down = conductor.isSustaining
         let loaded = conductor.isInstrumentLoaded
+        // Down is a lit, pressed-in green rather than a tint on an icon, so
+        // it reads by brightness as well as by colour.
+        let fill: [Color] = down
+            ? [Color(red: 0.16, green: 0.50, blue: 0.29), Color(red: 0.24, green: 0.66, blue: 0.38)]
+            : finish.panel
+        let rim: LinearGradient = down
+            ? LinearGradient(colors: [.white.opacity(0.25)], startPoint: .top, endPoint: .bottom)
+            : finish.panelRim
+        let shadow: Color = down ? .clear : finish.panelShadow
+        let text: Color = down ? .white : finish.panelText
         return Text("Pedal")
             .font(.system(size: unit * 0.375, weight: .semibold))
-            .foregroundStyle(down ? Color.white : Color(white: 0.92))
+            .foregroundStyle(text)
             .padding(.horizontal, 14)
             .frame(height: unit)
             .background {
-                // Down is a lit, pressed-in green rather than a tint on an
-                // icon, so it reads by brightness as well as by colour.
                 Capsule()
-                    .fill(LinearGradient(colors: down
-                                         ? [Color(red: 0.16, green: 0.50, blue: 0.29),
-                                            Color(red: 0.24, green: 0.66, blue: 0.38)]
-                                         : Self.panelColors,
-                                         startPoint: .top, endPoint: .bottom))
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(down ? 0.25 : 0.14),
-                                                    lineWidth: 1))
-                    .shadow(color: .black.opacity(down ? 0 : 0.5), radius: 1.5, y: 1)
+                    .fill(LinearGradient(colors: fill, startPoint: .top, endPoint: .bottom))
+                    .overlay(Capsule().strokeBorder(rim, lineWidth: 1))
+                    .shadow(color: shadow, radius: 1.5, y: 1)
             }
             .overlay {
                 TouchTracker { points in pedalTouched(!points.isEmpty) }
@@ -309,7 +311,7 @@ struct ContentView: View {
         } label: {
             Text("\(low)–\(high)")
                 .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(finish.panelText)
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 10)
@@ -414,7 +416,7 @@ struct ContentView: View {
             .padding(.horizontal, 8)
             .background {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.black.opacity(0.55))
+                    .fill(finish.display)
                     .overlay(RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(LinearGradient(colors: [.black.opacity(0.6), .white.opacity(0.08)],
                                                      startPoint: .top, endPoint: .bottom),
@@ -449,8 +451,6 @@ struct ContentView: View {
 
     // MARK: Panel parts
 
-    static let panelColors = [Color(white: 0.24), Color(white: 0.15)]
-
     /// The size every control is built from. A little bigger on iPad, where
     /// phone-sized buttons spread across a 13-inch bar looked lost. Decided by
     /// device rather than size class: a large iPhone in landscape reports a
@@ -465,7 +465,7 @@ struct ContentView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: unit * 0.4, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(finish.panelText)
                 .frame(width: unit, height: unit)
         }
         .buttonStyle(PanelButtonStyle(shape: Circle()))
@@ -564,22 +564,80 @@ struct ContentView: View {
 /// when touched.
 private struct PanelButtonStyle<S: InsettableShape>: ButtonStyle {
     let shape: S
-    var colors: [Color] = ContentView.panelColors
+    /// The key's own colours; the finish's panel colours when not given.
+    var colors: [Color]?
 
     func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed
-        return configuration.label
+        PanelKey(shape: shape, colors: colors, pressed: configuration.isPressed) {
+            configuration.label
+        }
+    }
+}
+
+private struct PanelKey<S: InsettableShape, Label: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let shape: S
+    let colors: [Color]?
+    let pressed: Bool
+    @ViewBuilder let label: Label
+
+    var body: some View {
+        let finish = Finish(colorScheme)
+        let fill = colors ?? finish.panel
+        label
             .background {
                 shape
-                    .fill(LinearGradient(colors: pressed ? colors.reversed() : colors,
+                    .fill(LinearGradient(colors: pressed ? fill.reversed() : fill,
                                          startPoint: .top, endPoint: .bottom))
-                    .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.18),
-                                                                        .white.opacity(0.03)],
-                                                               startPoint: .top, endPoint: .bottom),
-                                                lineWidth: 1))
-                    .shadow(color: .black.opacity(pressed ? 0 : 0.5), radius: 1.5, y: 1)
+                    .overlay(shape.strokeBorder(finish.panelRim, lineWidth: 1))
+                    .shadow(color: pressed ? .clear : finish.panelShadow, radius: 1.5, y: 1)
             }
             .contentShape(shape)
+    }
+}
+
+/// The instrument's finish. Black lacquer in dark mode; in light mode the
+/// ivory of a white piano, so the case matches the keys instead of framing
+/// them in black. The felt stays red and the clock stays a dark display
+/// either way.
+struct Finish {
+    let dark: Bool
+
+    init(_ scheme: ColorScheme) { dark = scheme == .dark }
+
+    private static func ivory(_ value: Double) -> Color {
+        Color(red: value, green: value * 0.992, blue: value * 0.965)
+    }
+
+    /// The control bar: lit from above.
+    var bar: [Color] {
+        dark ? [Color(white: 0.14), Color(white: 0.07)] : [Self.ivory(0.975), Self.ivory(0.925)]
+    }
+    var barHighlight: Color { dark ? .white.opacity(0.07) : .white.opacity(0.9) }
+
+    /// Around and below the keys.
+    var bezel: Color { dark ? Color(white: 0.06) : Self.ivory(0.9) }
+    var bezelEdge: Color { dark ? Color(white: 0.10) : Self.ivory(0.86) }
+    var bezelLine: Color { dark ? .black.opacity(0.5) : .black.opacity(0.12) }
+
+    /// The raised keys of the control panel.
+    var panel: [Color] {
+        dark ? [Color(white: 0.24), Color(white: 0.15)] : [Self.ivory(1.0), Self.ivory(0.93)]
+    }
+    var panelText: Color { dark ? Color(white: 0.92) : Color(white: 0.16) }
+    var panelRim: LinearGradient {
+        LinearGradient(colors: dark ? [.white.opacity(0.18), .white.opacity(0.03)]
+                                    : [.white.opacity(0.9), .black.opacity(0.10)],
+                       startPoint: .top, endPoint: .bottom)
+    }
+    var panelShadow: Color { dark ? .black.opacity(0.5) : .black.opacity(0.16) }
+
+    /// The clock's window: dark in both, solid enough to stay a display on ivory.
+    var display: Color { dark ? .black.opacity(0.55) : Color(white: 0.13).opacity(0.92) }
+
+    /// The page of music above the keys.
+    var page: [Color] {
+        dark ? [Color(white: 0.10), Color(white: 0.05)] : [Self.ivory(0.985), Self.ivory(0.95)]
     }
 }
 

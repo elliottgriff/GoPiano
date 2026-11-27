@@ -83,6 +83,12 @@ enum KeyboardRenderer {
                                  (1, hsb(hue, 0.80, 0.78))]))
     }
 
+    /// The same colour deepened for ink on a light page, where the bright one
+    /// - yellow especially - would barely show.
+    static func inkColour(for note: UInt8) -> CGColor {
+        hsb(CGFloat(Int(note) % 12) / 12, 0.85, 0.72)
+    }
+
     /// With note colours off, a held key keeps its own colour and just looks
     /// pressed: an ivory sunk into the shadow of its neighbours, an ebony
     /// gone darker as it drops away from the light. With the shorter front

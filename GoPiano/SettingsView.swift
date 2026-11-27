@@ -92,6 +92,5 @@ struct SettingsView: View {
         // Scrolls on a phone in landscape; a popover can't be taller than that.
         .frame(idealWidth: 370, idealHeight: 600)
         // Dark like the instrument it sits over, not a bright card on top.
-        .preferredColorScheme(.dark)
     }
 }
