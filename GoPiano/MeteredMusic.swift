@@ -5,7 +5,8 @@
 //  Music written with its rhythm: bars, note values from whole notes to
 //  sixteenths, rests, ties across bar lines. It needs to know where the beat
 //  is, which only music that came with one does - an imported MIDI file stores
-//  every note's place in beats - so this is how imports are written out.
+//  every note's place in beats, and a take recorded to the metronome is
+//  measured against its click - so this is how both are written out.
 //
 //  Each staff is written as a single line of notes and rests. Notes struck
 //  together are one chord; a note still sounding when the next one starts is
