@@ -76,14 +76,20 @@ struct MelodyVideoExporter {
         writer.startSession(atSourceTime: .zero)
 
         let framing = score.framing()
+        // Longer keys than on screen: a frame has no score above the keys to
+        // fill the height, so holding real proportions would leave a band of
+        // empty case across the top of a several-octave melody.
         let layout = PianoLayout(firstOctave: framing.firstOctave,
                                  octaveCount: framing.octaveCount,
-                                 size: size)
+                                 size: size,
+                                 maxKeyRatio: 11)
         let total = max(score.duration, audioDuration) + tailOut
         let frameCount = max(1, Int((total + leadIn) * Double(framesPerSecond)))
 
         guard let pool = adaptor.pixelBufferPool else { throw MelodyVideoError.setupFailed }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
+        // The keys light as they do in the app when the video is made.
+        let colourful = KeyboardRenderer.coloursOn
 
         for frame in 0..<frameCount {
             await waitUntilReady(input)
@@ -112,7 +118,7 @@ struct MelodyVideoExporter {
                 KeyboardRenderer.draw(layout: layout,
                                       pressed: pressed,
                                       showsLabels: true,
-                                      fillsBackground: true,
+                                      colourful: colourful,
                                       in: context)
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])

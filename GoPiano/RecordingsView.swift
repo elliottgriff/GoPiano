@@ -17,7 +17,7 @@ struct RecordingsView: View {
 
     /// Handed an imported melody to perform on the keyboard once this sheet
     /// has gone, rather than playing it in here behind the library.
-    let onImport: (MelodyScore) -> Void
+    let onImport: (MelodyScore, _ name: String) -> Void
 
     @State private var recordings: [Recording] = []
     @State private var selection: Recording?
@@ -60,6 +60,10 @@ struct RecordingsView: View {
                 }
             }
         }
+        // Dark, like the instrument it slides up over. A bright standard sheet
+        // made it look like a second app.
+        .preferredColorScheme(.dark)
+        .pageSizedOnPad()
         .onAppear(perform: reload)
         .onDisappear { if !handedOff { conductor.stopPlayback() } }
         .fileImporter(isPresented: $isImporting,
@@ -126,9 +130,21 @@ struct RecordingsView: View {
 
                 // Labels never wrap; if the pane is too narrow for words the
                 // whole row falls back to icons rather than stacking letters.
+                // Narrower still, Play takes a row of its own above the rest,
+                // so nothing is ever pushed off the edge of the pane.
                 ViewThatFits(in: .horizontal) {
-                    actions(for: recording, showingLabels: true)
-                    actions(for: recording, showingLabels: false)
+                    HStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: true)
+                    }
+                    HStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: false)
+                    }
+                    VStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: false)
+                    }
                 }
                 .disabled(exportingVideo)
             }
@@ -140,19 +156,22 @@ struct RecordingsView: View {
         }
     }
 
+    private func playButton(for recording: Recording, showingLabels: Bool) -> some View {
+        Button {
+            togglePlay(recording)
+        } label: {
+            actionLabel(conductor.isPlaying ? "Stop" : "Play",
+                        systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
+                        showingLabels: showingLabels)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
+    /// Everything but Play: sharing, exports, and the rest.
     @ViewBuilder
     private func actions(for recording: Recording, showingLabels: Bool) -> some View {
         HStack(spacing: 10) {
-            Button {
-                togglePlay(recording)
-            } label: {
-                actionLabel(conductor.isPlaying ? "Stop" : "Play",
-                            systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
-                            showingLabels: showingLabels)
-                    .frame(maxWidth: showingLabels ? .infinity : nil)
-            }
-            .buttonStyle(.borderedProminent)
-
             ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
                 actionLabel("Share", systemImage: "square.and.arrow.up",
                             showingLabels: showingLabels)
@@ -175,6 +194,15 @@ struct RecordingsView: View {
                 exportMIDI(recording)
             } label: {
                 actionLabel("MIDI", systemImage: "pianokeys", showingLabels: showingLabels)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!hasScore(recording))
+
+            Button {
+                exportSheetMusic(recording)
+            } label: {
+                actionLabel("Sheet Music", systemImage: "music.quarternote.3",
+                            showingLabels: showingLabels)
             }
             .buttonStyle(.bordered)
             .disabled(!hasScore(recording))
@@ -302,6 +330,26 @@ struct RecordingsView: View {
         }
     }
 
+    /// The melody written out as sheet music, the way the page above the keys
+    /// showed it, as a PDF to print or send.
+    private func exportSheetMusic(_ recording: Recording) {
+        guard let score = RecordingStore.shared.score(for: recording), !score.isEmpty else {
+            errorMessage = SheetMusicError.noNotes.localizedDescription
+            return
+        }
+        conductor.stopPlayback()
+        do {
+            let played = recording.created.formatted(date: .long, time: .omitted)
+            exported = ExportedFile(url: try SheetMusicPDF.write(score,
+                                                                 named: recording.name,
+                                                                 subtitle: "Played \(played)",
+                                                                 length: recording.duration),
+                                    kind: .sheetMusic)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func delete(at offsets: IndexSet) {
         let going = offsets.map { recordings[$0] }
         if going.contains(where: { $0 == selection }) { conductor.stopPlayback() }
@@ -336,10 +384,11 @@ struct RecordingsView: View {
 
     private func importMIDI(_ result: Result<URL, any Error>) {
         do {
-            let score = try MIDIImport.score(from: try result.get())
+            let url = try result.get()
+            let score = try MIDIImport.score(from: url)
             conductor.stopPlayback()
             handedOff = true
-            onImport(score)
+            onImport(score, url.deletingPathExtension().lastPathComponent)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -357,6 +406,7 @@ struct ExportedFile: Identifiable {
     enum Kind {
         case video
         case midi
+        case sheetMusic
     }
 
     let url: URL
@@ -367,7 +417,7 @@ struct ExportedFile: Identifiable {
 
 /// Lets a freshly made export be shared without first saving it anywhere the
 /// user has to manage.
-private struct ExportShareSheet: View {
+struct ExportShareSheet: View {
     let file: ExportedFile
     @Environment(\.dismiss) private var dismiss
 
@@ -401,6 +451,7 @@ private struct ExportShareSheet: View {
         switch file.kind {
         case .video: "Video"
         case .midi: "MIDI"
+        case .sheetMusic: "Sheet Music"
         }
     }
 
@@ -408,6 +459,7 @@ private struct ExportShareSheet: View {
         switch file.kind {
         case .video: "film"
         case .midi: "pianokeys"
+        case .sheetMusic: "music.quarternote.3"
         }
     }
 
@@ -417,10 +469,25 @@ private struct ExportShareSheet: View {
             "Your melody is ready to share."
         case .midi:
             "Your melody as editable notes. Open it in a DAW, or send it to yourself to work on later."
+        case .sheetMusic:
+            "Your melody written out as sheet music, ready to print or send."
         }
     }
 }
 
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
+}
+
+private extension View {
+    /// On iPad the standard form sheet is too narrow for the list beside a
+    /// melody's keys and actions; a page-sized sheet gives the detail room.
+    @ViewBuilder
+    func pageSizedOnPad() -> some View {
+        if #available(iOS 18.0, *) {
+            presentationSizing(.page)
+        } else {
+            self
+        }
+    }
 }

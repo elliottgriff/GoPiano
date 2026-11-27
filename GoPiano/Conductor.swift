@@ -2,8 +2,9 @@
 //  Conductor.swift
 //  GoPiano
 //
-//  Owns the audio graph: a multi-sampled piano into reverb, tapped by a
-//  recorder, with a player for listening back.
+//  Owns the audio graph: a multi-sampled piano into reverb - a room always,
+//  a hall while the pedal is down - tapped by a recorder, with a player for
+//  listening back.
 //
 
 import AVFoundation
@@ -17,6 +18,8 @@ final class Conductor {
 
     enum Transport: Equatable {
         case idle
+        /// The metronome's bar of clicks before a take starts on the downbeat.
+        case countingIn
         case recording
         case playing
     }
@@ -27,7 +30,19 @@ final class Conductor {
     private let sampler = Sampler()
     private let instrumentBus: Mixer
     private let reverb: Reverb
+    /// The pedal's ring. With the dampers lifted a piano's strings sound on
+    /// and set the rest of the instrument humming; a hall reverb, faded in
+    /// only while the pedal is down, stands in for that. Wholly wet, so the
+    /// room above still sets how dry the piano is.
+    private let hall: Reverb
+    private let hallSend: Mixer
+    /// The piano and both reverbs: what's recorded.
+    private let instrumentOut: Mixer
+    private var hallFade: Timer?
     private let player = AudioPlayer()
+    /// The metronome. It joins the graph after the reverb and away from the
+    /// recorder's tap, so the click is heard but never recorded.
+    private let click = ClickNode()
     private let mainBus: Mixer
     private var recorder: NodeRecorder?
 
@@ -36,6 +51,13 @@ final class Conductor {
     private(set) var transport: Transport = .idle
     private(set) var isInstrumentLoaded = false
     private(set) var hasRecording = false
+    /// A take was recorded and has not been saved. Only this can be lost, so
+    /// only this is worth a confirmation - and only this is what Save saves.
+    /// It survives opening a melody from the library or importing a file: those
+    /// change what Play plays, but the take is still on disk until it is saved,
+    /// reset, or recorded over. (`hasRecording` is also true for a library
+    /// melody, which is already safe.)
+    private(set) var hasUnsavedTake = false
     /// An imported melody is loaded: notes with no audio behind them, which
     /// the sampler has to perform. Kept apart from `hasRecording`, which means
     /// there is a take that can be saved and shared as sound.
@@ -59,7 +81,11 @@ final class Conductor {
     /// written once the engine has built its audio units.
     private(set) var reverbMix: Float = 0.25
 
-    var isRecording: Bool { transport == .recording }
+    /// A take is under way, counting in included: what the controls care about.
+    var isRecording: Bool { transport == .recording || transport == .countingIn }
+    var isCountingIn: Bool { transport == .countingIn }
+    /// Beats left before a counted-in take starts, for the clock to show.
+    private(set) var countInBeatsLeft = 0
     var isPlaying: Bool { transport == .playing }
 
     // MARK: - What was played
@@ -73,7 +99,21 @@ final class Conductor {
     private var recordingStart: TimeInterval = 0
     /// The score matching whatever the player currently holds.
     private(set) var currentScore = MelodyScore()
+    /// The notes of the last take, kept apart from `currentScore`: opening a
+    /// library melody replaces that, and saving the take afterwards paired its
+    /// audio with the other melody's notes.
+    private var takeScore = MelodyScore()
     private var replayTimer: Timer?
+
+    /// The song as sheet music, shown above the keys: every note written down
+    /// in the order it was played, notes struck together stacked into chords.
+    /// It is the music of whatever is loaded - the take just recorded, a saved
+    /// melody, an import - or, with nothing loaded, of whatever is played.
+    private(set) var page: SheetPage = .written([])
+    /// Whether playing writes onto the page. True with nothing loaded and
+    /// while recording; false while the page shows a finished take or a
+    /// melody, so playing along with it doesn't scribble over it.
+    private(set) var pageIsLive = true
 
     // Sequencer state - see "Performing a melody" below.
     private var sequence: [SequencedEvent] = []
@@ -87,12 +127,22 @@ final class Conductor {
 
     private var now: TimeInterval { CACurrentMediaTime() }
 
-    /// How long the take runs: read live off the recording clock while one is
-    /// running, and the finished length once it stops. The readout used to add
-    /// up timer ticks, which drifts - the ticks arrive late under load, so the
-    /// number fell behind the take it was meant to be measuring.
-    var takeDuration: TimeInterval {
-        transport == .recording ? now - recordingStart : finishedTakeDuration
+    /// What the time readout shows: the take growing while it records, how far
+    /// in while something plays, and otherwise how long the loaded melody runs.
+    /// Always read off a real clock - adding up timer ticks drifts, because the
+    /// ticks arrive late under load.
+    var readoutTime: TimeInterval {
+        switch transport {
+        case .recording:
+            return now - recordingStart
+        case .countingIn:
+            return 0
+        case .playing:
+            let position = hasSequence ? now - sequenceStart : player.currentTime
+            return min(max(0, position), finishedTakeDuration)
+        case .idle:
+            return finishedTakeDuration
+        }
     }
 
     private var finishedTakeDuration: TimeInterval = 0
@@ -100,7 +150,11 @@ final class Conductor {
     init() {
         instrumentBus = Mixer(sampler)
         reverb = Reverb(instrumentBus)
-        mainBus = Mixer(reverb, player)
+        hall = Reverb(instrumentBus)
+        hallSend = Mixer(hall)
+        hallSend.volume = 0
+        instrumentOut = Mixer(reverb, hallSend)
+        mainBus = Mixer(instrumentOut, player, click)
         engine.output = mainBus
 
         player.isLooping = false
@@ -126,6 +180,8 @@ final class Conductor {
             // instantiated the underlying audio units.
             reverb.loadFactoryPreset(.mediumRoom)
             reverb.dryWetMix = AUValue(reverbMix)
+            hall.loadFactoryPreset(.largeHall)
+            hall.dryWetMix = 1
 
             // Set before the samples are handed over: swapping in new sampler
             // data copies the envelope settings across from the current one,
@@ -133,7 +189,8 @@ final class Conductor {
             applySamplerParameters()
 
             loadInstrument()
-            recorder = try NodeRecorder(node: reverb)
+            makeClickSounds()
+            recorder = try NodeRecorder(node: instrumentOut)
             observeAudioSession()
         } catch {
             startupError = error.localizedDescription
@@ -195,6 +252,7 @@ final class Conductor {
         player.stop()
         stopReplay()
         stopSequence()
+        stopClicks()
         transport = .idle
     }
 
@@ -227,6 +285,7 @@ final class Conductor {
     /// current sampler, and writes made straight afterwards are rejected.
     private func applySamplerParameters() {
         sampler.masterVolume = 0.9
+        // The dampers: a key let go without the pedal stops soon after.
         sampler.releaseDuration = 0.45
     }
 
@@ -318,7 +377,14 @@ final class Conductor {
         let at = now - recordingStart
         activeNotes.insert(note)
         sampler.play(noteNumber: note, velocity: velocity)
-        if isRecording { scoreRecorder.noteOn(note, velocity: velocity, at: at) }
+        // Played to the click, the take is written in bars as it goes;
+        // otherwise each note is added after the last.
+        if transport == .recording, takeTempo != nil {
+            refreshLivePage()
+        } else if pageIsLive {
+            write(note, at: at)
+        }
+        if transport == .recording { scoreRecorder.noteOn(note, velocity: velocity, at: at) }
     }
 
     func noteOff(_ note: UInt8) {
@@ -326,7 +392,31 @@ final class Conductor {
         let at = now - recordingStart
         activeNotes.remove(note)
         sampler.stop(noteNumber: note)
-        if isRecording { scoreRecorder.noteOff(note, at: at) }
+        if transport == .recording { scoreRecorder.noteOff(note, at: at) }
+        if transport == .recording, takeTempo != nil { refreshLivePage() }
+    }
+
+    /// Notes played freely onto the page, with no take behind them - all a
+    /// player has to clear when nothing's been recorded.
+    var hasWrittenNotes: Bool {
+        if case .written(let chords) = page { return !chords.isEmpty }
+        return false
+    }
+
+    /// Wipes the freely played notes off the page, leaving everything else -
+    /// the pedal, the instrument - as it is.
+    func clearPage() {
+        page = .written([])
+        pageIsLive = true
+    }
+
+    /// Writes a played note onto the page. A very long session keeps its most
+    /// recent stretch rather than growing without end.
+    private func write(_ note: UInt8, at time: TimeInterval) {
+        guard case .written(var chords) = page else { return }
+        SheetMusic.add(note, at: time, to: &chords)
+        if chords.count > 5000 { chords.removeFirst(1000) }
+        page = .written(chords)
     }
 
     func setReverbMix(_ value: Float) {
@@ -339,6 +429,28 @@ final class Conductor {
         guard on != isSustaining else { return }
         isSustaining = on
         sampler.sustainPedal(pedalDown: on)
+        // Down, the ring swells in; up, the dampers fall and it's gone soon
+        // after - quickly, but not so suddenly that it clicks.
+        fadeHall(to: on ? Self.pedalRing : 0, over: on ? 0.15 : 0.35)
+    }
+
+    /// How loud the pedal's ring is beside the piano.
+    private static let pedalRing: AUValue = 0.45
+
+    /// Mixer volume can't be ramped by the engine, so it's stepped here, often
+    /// enough that the steps aren't heard.
+    private func fadeHall(to target: AUValue, over duration: TimeInterval) {
+        hallFade?.invalidate()
+        let from = hallSend.volume
+        let began = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let progress = min(1, (CACurrentMediaTime() - began) / duration)
+            self.hallSend.volume = from + (target - from) * AUValue(progress)
+            if progress >= 1 { timer.invalidate() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hallFade = timer
     }
 
     /// Plays a note and releases it shortly after. VoiceOver activates a key
@@ -355,7 +467,7 @@ final class Conductor {
         let held = activeNotes
         for note in held {
             sampler.stop(noteNumber: note)
-            if isRecording { scoreRecorder.noteOff(note, at: now - recordingStart) }
+            if transport == .recording { scoreRecorder.noteOff(note, at: now - recordingStart) }
         }
         activeNotes.removeAll()
     }
@@ -365,6 +477,10 @@ final class Conductor {
     func toggleRecording() {
         switch transport {
         case .recording: stopRecording()
+        case .countingIn:
+            // Changed their mind during the count: nothing was recorded.
+            stopClicks()
+            transport = .idle
         default: startRecording()
         }
     }
@@ -379,15 +495,48 @@ final class Conductor {
         hasSequence = false
         // No point stopping a player that was never scheduled.
         if player.isPlaying { player.stop() }
+        finishedTakeDuration = 0
+        hasUnsavedTake = false
+        // A new take starts a new page.
+        page = .written([])
+        pageIsLive = true
+        currentScore = MelodyScore()
+
+        let metronome = Self.metronomeSettings
+        guard metronome.isOn, clickSounds != nil else {
+            takeTempo = nil
+            takeSignature = nil
+            beginTake(at: now)
+            return
+        }
+
+        // One bar counted in, then the take starts on the downbeat, so its
+        // notes can be counted in beats from the first one.
+        takeTempo = metronome.tempo
+        takeSignature = TimeSignature(beats: metronome.beatsPerBar, unit: 4)
+        let interval = 60 / metronome.tempo
+        let firstClick = now + 0.1
+        let downbeat = firstClick + interval * Double(metronome.beatsPerBar)
+        transport = .countingIn
+        countInBeatsLeft = metronome.beatsPerBar
+        startClicks(at: firstClick, interval: interval, beatsPerBar: metronome.beatsPerBar)
+        let start = DispatchWorkItem { [weak self] in self?.beginTake(at: downbeat) }
+        downbeatWork = start
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, downbeat - now), execute: start)
+    }
+
+    private func beginTake(at start: TimeInterval) {
+        guard let recorder else { return }
+        downbeatWork = nil
         do {
             try recorder.reset()
             try recorder.record()
             scoreRecorder.reset()
-            recordingStart = now
-            finishedTakeDuration = 0
-            currentScore = MelodyScore()
+            recordingStart = start
             transport = .recording
         } catch {
+            stopClicks()
+            transport = .idle
             Log("Could not start recording: \(error)")
         }
     }
@@ -396,12 +545,26 @@ final class Conductor {
         guard let recorder else { return }
         let elapsed = now - recordingStart
         recorder.stop()
+        stopClicks()
         transport = .idle
         finishedTakeDuration = elapsed
         currentScore = scoreRecorder.finish(at: elapsed)
+        // Played to the click, every note can be counted in beats - which is
+        // what lets the take be written with real note values, and saved so
+        // its sheet music keeps them.
+        if let tempo = takeTempo, let signature = takeSignature {
+            currentScore = Self.measured(currentScore, tempo: tempo, signature: signature)
+        }
+        takeTempo = nil
+        takeScore = currentScore
+        // The page now is the take, timed from its start so a replay can
+        // follow along on it.
+        page = SheetPage(score: currentScore)
+        pageIsLive = false
         if let file = recorder.audioFile, file.length > 0 {
             try? player.load(file: file)
             hasRecording = true
+            hasUnsavedTake = true
         }
     }
 
@@ -412,7 +575,7 @@ final class Conductor {
             stopReplay()
             stopSequence()
             transport = .idle
-        case .recording:
+        case .recording, .countingIn:
             break
         case .idle:
             if hasSequence {
@@ -449,6 +612,9 @@ final class Conductor {
         currentScore = RecordingStore.shared.score(for: recording) ?? MelodyScore()
         hasRecording = true
         hasSequence = false
+        finishedTakeDuration = recording.duration
+        page = SheetPage(score: currentScore)
+        pageIsLive = false
         transport = .idle
     }
 
@@ -463,6 +629,8 @@ final class Conductor {
         sequence = Self.events(for: score)
         hasRecording = false
         hasSequence = !score.isEmpty
+        page = SheetPage(score: score)
+        pageIsLive = false
         finishedTakeDuration = score.duration
         transport = .idle
     }
@@ -471,8 +639,14 @@ final class Conductor {
         player.stop()
         stopReplay()
         stopSequence()
+        stopClicks()
+        takeTempo = nil
         hasSequence = false
+        hasUnsavedTake = false
+        takeScore = MelodyScore()
         sequence = []
+        page = .written([])
+        pageIsLive = true
         allNotesOff()
         setSustain(false)
         discardTakeFile()
@@ -524,6 +698,120 @@ final class Conductor {
         replayTimer?.invalidate()
         replayTimer = nil
         if !replayNotes.isEmpty { replayNotes = [] }
+    }
+
+    // MARK: - Metronome
+
+    static let metronomeKey = "metronome"
+    static let tempoKey = "tempo"
+    static let beatsPerBarKey = "beatsPerBar"
+
+    /// What Settings stored, read as each take starts.
+    private static var metronomeSettings: (isOn: Bool, tempo: Double, beatsPerBar: Int) {
+        let defaults = UserDefaults.standard
+        let tempo = defaults.object(forKey: tempoKey) as? Int ?? 100
+        let beats = defaults.object(forKey: beatsPerBarKey) as? Int ?? 4
+        return (defaults.bool(forKey: metronomeKey),
+                Double(min(max(tempo, 30), 240)),
+                min(max(beats, 2), 7))
+    }
+
+    /// The tempo and time signature of the take under way, when it is played
+    /// to the click; nil for a take played freely.
+    private var takeTempo: Double?
+    private var takeSignature: TimeSignature?
+
+    private var clickSounds: (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)?
+    private var clickTimer: Timer?
+    private var clickOrigin: TimeInterval = 0
+    private var clickInterval: TimeInterval = 0.6
+    private var clickBeatsPerBar = 4
+    private var clickNext = 0
+    private var downbeatWork: DispatchWorkItem?
+
+    /// Two short, bright ticks - higher for the first beat of the bar - made in
+    /// whatever format the graph gave the click, which a player has to match.
+    private func makeClickSounds() {
+        let format = click.player.outputFormat(forBus: 0)
+        func tick(pitch: Double, level: Float) -> AVAudioPCMBuffer? {
+            let rate = format.sampleRate
+            let frames = AVAudioFrameCount(rate * 0.06)
+            guard rate > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames),
+                  let channels = buffer.floatChannelData else { return nil }
+            buffer.frameLength = frames
+            for frame in 0..<Int(frames) {
+                let time = Double(frame) / rate
+                let sample = Float(sin(2 * .pi * pitch * time) * exp(-time * 70)) * level
+                for channel in 0..<Int(format.channelCount) { channels[channel][frame] = sample }
+            }
+            return buffer
+        }
+        if let accent = tick(pitch: 2000, level: 0.55), let beat = tick(pitch: 1500, level: 0.35) {
+            clickSounds = (accent, beat)
+        }
+    }
+
+    private func startClicks(at origin: TimeInterval, interval: TimeInterval, beatsPerBar: Int) {
+        stopClicks()
+        clickOrigin = origin
+        clickInterval = interval
+        clickBeatsPerBar = beatsPerBar
+        clickNext = 0
+        click.player.play()
+        scheduleClicks()
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.scheduleClicks() }
+        RunLoop.main.add(timer, forMode: .common)
+        clickTimer = timer
+    }
+
+    /// Clicks are booked a little ahead at exact host times, so they keep time
+    /// to the sample rather than to whenever this timer gets round to it.
+    private func scheduleClicks() {
+        guard let sounds = clickSounds else { return }
+        while clickOrigin + Double(clickNext) * clickInterval < now + 0.4 {
+            let at = clickOrigin + Double(clickNext) * clickInterval
+            let sound = clickNext % clickBeatsPerBar == 0 ? sounds.accent : sounds.beat
+            click.player.scheduleBuffer(sound, at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
+            clickNext += 1
+        }
+        if transport == .countingIn {
+            let elapsed = Int(((now - clickOrigin) / clickInterval).rounded(.down))
+            let left = max(1, clickBeatsPerBar - max(0, elapsed))
+            if left != countInBeatsLeft { countInBeatsLeft = left }
+        }
+    }
+
+    private func stopClicks() {
+        clickTimer?.invalidate()
+        clickTimer = nil
+        downbeatWork?.cancel()
+        downbeatWork = nil
+        click.player.stop()
+    }
+
+    /// The take so far, written in bars: rebuilt as each note starts and ends.
+    private func refreshLivePage() {
+        guard transport == .recording, let tempo = takeTempo, let signature = takeSignature else { return }
+        let elapsed = now - recordingStart
+        let sofar = MelodyScore(spans: scoreRecorder.snapshot(at: elapsed), duration: elapsed)
+        if let music = MeteredMusic(score: Self.measured(sofar, tempo: tempo, signature: signature)) {
+            page = .metered(music)
+        }
+    }
+
+    /// A take recorded to the click, with every note's place and length
+    /// counted in beats at the tempo it was played to.
+    static func measured(_ score: MelodyScore, tempo: Double, signature: TimeSignature) -> MelodyScore {
+        let perBeat = 60 / tempo
+        var measured = score
+        measured.spans = score.spans.map {
+            NoteSpan(note: $0.note, start: $0.start, end: $0.end, velocity: $0.velocity,
+                     beat: $0.start / perBeat, beats: ($0.end - $0.start) / perBeat)
+        }
+        measured.timeSignature = signature
+        measured.tempo = tempo
+        return measured
     }
 
     // MARK: - Performing a melody
@@ -623,11 +911,21 @@ final class Conductor {
     /// Encodes the current take into the recordings library, along with the
     /// notes that were played so it can be replayed and exported as video.
     func saveRecording(named name: String) throws -> Recording {
-        guard let source = recorder?.audioFile?.url, hasRecording else {
+        guard let source = recorder?.audioFile?.url, hasUnsavedTake else {
             throw RecordingStoreError.noTake
         }
-        return try RecordingStore.shared.save(copying: source,
-                                              named: name,
-                                              score: currentScore)
+        let saved = try RecordingStore.shared.save(copying: source,
+                                                   named: name,
+                                                   score: takeScore)
+        hasUnsavedTake = false
+        return saved
     }
+}
+
+/// The metronome's voice in the audio graph: a plain player node, wrapped so
+/// AudioKit can mix it in alongside the piano.
+final class ClickNode: Node {
+    let player = AVAudioPlayerNode()
+    var avAudioNode: AVAudioNode { player }
+    var connections: [Node] { [] }
 }

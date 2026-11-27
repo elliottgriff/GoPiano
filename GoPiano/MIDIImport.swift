@@ -71,17 +71,69 @@ enum MIDIImport {
             throw MIDIImportError.noNotes
         }
 
+        // The file's own beat, so its sheet music can be written in bars with
+        // real note values. A file that doesn't say is in 4/4, as the MIDI
+        // standard has it.
+        let signature = timeSignature(of: sequence) ?? .common
+
         // Files often open with a bar or two of silence - a count-in, or room
         // for a pickup. Played on the keyboard that is just a wait in front of
-        // a dark keyboard, so the melody starts on its first note instead.
+        // a dark keyboard, so the melody starts on its first note instead. The
+        // beats move back by whole bars only, so the bar lines still fall
+        // where the file put them.
+        let firstBeat = spans.compactMap(\.beat).min() ?? 0
+        let barShift = (firstBeat / signature.barLength).rounded(.down) * signature.barLength
         let shifted = spans
             .map { NoteSpan(note: $0.note,
                             start: $0.start - firstStart,
                             end: $0.end - firstStart,
-                            velocity: $0.velocity) }
+                            velocity: $0.velocity,
+                            beat: $0.beat.map { $0 - barShift },
+                            beats: $0.beats) }
             .sorted { $0.start < $1.start }
 
-        return MelodyScore(spans: shifted, duration: shifted.map(\.end).max() ?? 0)
+        return MelodyScore(spans: shifted,
+                           duration: shifted.map(\.end).max() ?? 0,
+                           timeSignature: signature)
+    }
+
+    /// The first time signature in the file, if it has one.
+    private static func timeSignature(of sequence: MusicSequence) -> TimeSignature? {
+        var found: MusicTrack?
+        guard MusicSequenceGetTempoTrack(sequence, &found) == noErr, let track = found else {
+            return nil
+        }
+        var created: MusicEventIterator?
+        guard NewMusicEventIterator(track, &created) == noErr, let iterator = created else {
+            return nil
+        }
+        defer { DisposeMusicEventIterator(iterator) }
+
+        var hasEvent: DarwinBoolean = false
+        MusicEventIteratorHasCurrentEvent(iterator, &hasEvent)
+        while hasEvent.boolValue {
+            var beat: MusicTimeStamp = 0
+            var type: MusicEventType = 0
+            var data: UnsafeRawPointer?
+            var size: UInt32 = 0
+            MusicEventIteratorGetEventInfo(iterator, &beat, &type, &data, &size)
+            if type == kMusicEventType_Meta, let data {
+                let meta = data.loadUnaligned(as: MIDIMetaEvent.self)
+                // 0x58 is a time signature: numerator, then the denominator
+                // as a power of two.
+                if meta.metaEventType == 0x58, meta.dataLength >= 2 {
+                    let bytes = data + (MemoryLayout<MIDIMetaEvent>.offset(of: \MIDIMetaEvent.data) ?? 8)
+                    let beats = Int(bytes.load(as: UInt8.self))
+                    let power = Int(bytes.load(fromByteOffset: 1, as: UInt8.self))
+                    if (1...16).contains(beats), (1...4).contains(power) {
+                        return TimeSignature(beats: beats, unit: 1 << power)
+                    }
+                }
+            }
+            MusicEventIteratorNextEvent(iterator)
+            MusicEventIteratorHasCurrentEvent(iterator, &hasEvent)
+        }
+        return nil
     }
 
     private static func notes(in track: MusicTrack, of sequence: MusicSequence) -> [NoteSpan] {
@@ -115,7 +167,9 @@ enum MIDIImport {
                     spans.append(NoteSpan(note: message.note,
                                           start: start,
                                           end: max(end, start + shortestNote),
-                                          velocity: max(1, message.velocity)))
+                                          velocity: max(1, message.velocity),
+                                          beat: beat,
+                                          beats: Double(message.duration)))
                 }
             }
 

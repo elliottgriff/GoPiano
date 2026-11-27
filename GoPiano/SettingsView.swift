@@ -12,6 +12,12 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(Conductor.self) private var conductor
     @Binding var showsLabels: Bool
+    @AppStorage("touchDynamics") private var touchDynamics = true
+    @AppStorage(KeyboardRenderer.coloursKey) private var noteColours = true
+    @AppStorage(SheetMusic.namesKey) private var sheetNoteNames = false
+    @AppStorage(Conductor.metronomeKey) private var metronome = false
+    @AppStorage(Conductor.tempoKey) private var tempo = 100
+    @AppStorage(Conductor.beatsPerBarKey) private var beatsPerBar = 4
 
     // The samples are CC BY 3.0, which is not attribution-optional: it wants
     // the author, the work, a link to the licence, and a note that the work was
@@ -26,12 +32,45 @@ struct SettingsView: View {
                 // each only costs height the popover does not have.
                 Toggle("Note Names", isOn: $showsLabels)
 
+                Toggle(isOn: $noteColours) {
+                    Text("Note Colours")
+                    Text("Each note its own colour, on the keys and the music")
+                }
+
+                Toggle(isOn: $sheetNoteNames) {
+                    Text("Names on Sheet Music")
+                    Text("Each note's letter under the staff, here and in PDFs")
+                }
+
+                // This one does need its line: "Touch Dynamics" alone doesn't
+                // say what the touch is measured by.
+                Toggle(isOn: $touchDynamics) {
+                    Text("Touch Dynamics")
+                    Text("Louder at the front of the key")
+                }
+
                 HStack {
                     Text("Reverb")
                     Slider(value: Binding(get: { Double(conductor.reverbMix) },
                                           set: { conductor.setReverbMix(Float($0)) }),
                            in: 0...0.6)
                         .accessibilityLabel("Reverb")
+                }
+            }
+
+            Section {
+                Toggle(isOn: $metronome) {
+                    Text("Metronome")
+                    Text("Counts you in and clicks while you record, so takes are written in bars")
+                }
+                if metronome {
+                    Stepper("Tempo  \(tempo)", value: $tempo, in: 40...220, step: 4)
+                    Picker("Time", selection: $beatsPerBar) {
+                        Text("2/4").tag(2)
+                        Text("3/4").tag(3)
+                        Text("4/4").tag(4)
+                    }
+                    .pickerStyle(.segmented)
                 }
             }
 
@@ -48,6 +87,11 @@ struct SettingsView: View {
         // Sized to hold every section at once. An iPhone in landscape is only
         // ~400pt tall, so this has to stay well under that, which is why the
         // contents above are kept short rather than the box made taller.
-        .frame(idealWidth: 340, idealHeight: 300)
+        // Wide enough that the dynamics line stays on one line: on two, it
+        // pushed the end of the licence credit below the popover's edge.
+        // Scrolls on a phone in landscape; a popover can't be taller than that.
+        .frame(idealWidth: 370, idealHeight: 600)
+        // Dark like the instrument it sits over, not a bright card on top.
+        .preferredColorScheme(.dark)
     }
 }

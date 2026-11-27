@@ -37,7 +37,28 @@ struct PianoLayout {
     var whiteKeyCount: Int { octaveCount * 7 + 1 }
     var whiteKeyWidth: CGFloat { size.width / CGFloat(whiteKeyCount) }
     var blackKeyWidth: CGFloat { whiteKeyWidth * 0.62 }
-    var blackKeyHeight: CGFloat { size.height * 0.62 }
+    var blackKeyHeight: CGFloat { keyLength * 0.62 }
+
+    /// The longest a white key gets, as a multiple of its width. A real one is
+    /// about six and a half times as long as it is wide; a little more is
+    /// kinder to fingers. Without a limit, three octaves on a 13-inch iPad
+    /// drew keys fifteen times longer than wide - sticks, not keys. On an iPad
+    /// the height this frees holds the score (see ContentView.keyboardArea).
+    static let longestKeyRatio: CGFloat = 7
+
+    /// The limit for this layout. The video loosens it: a frame has no score
+    /// to fill the space above, so its keys are allowed to run longer.
+    var maxKeyRatio: CGFloat = PianoLayout.longestKeyRatio
+
+    /// How long the keys are: the full height, unless that would stretch them
+    /// past real proportions.
+    var keyLength: CGFloat { min(size.height, whiteKeyWidth * maxKeyRatio) }
+
+    /// Where the keys begin. When there is more height than the keys should
+    /// have - an iPad, or a video frame of several octaves - they sit at the
+    /// front, under the player's hands, and the space above is the case of the
+    /// instrument. A phone's keyboard is never tall enough for this to apply.
+    var keyTop: CGFloat { max(0, size.height - keyLength) }
 
     private func note(octave: Int, semitone: Int) -> UInt8 {
         let value = (firstOctave + octave) * 12 + semitone + baseMIDINote
@@ -49,8 +70,8 @@ struct PianoLayout {
         for index in 0..<whiteKeyCount {
             let octave = index / 7
             let semitone = Self.whiteSemitones[index % 7]
-            let frame = CGRect(x: CGFloat(index) * whiteKeyWidth, y: 0,
-                               width: whiteKeyWidth, height: size.height)
+            let frame = CGRect(x: CGFloat(index) * whiteKeyWidth, y: keyTop,
+                               width: whiteKeyWidth, height: keyLength)
             keys.append(PianoKey(note: note(octave: octave, semitone: semitone),
                                  isBlack: false, frame: frame))
         }
@@ -63,7 +84,7 @@ struct PianoLayout {
             for entry in Self.blackSemitones {
                 // Straddle the boundary between two white keys.
                 let boundary = CGFloat(octave * 7 + entry.after + 1) * whiteKeyWidth
-                let frame = CGRect(x: boundary - blackKeyWidth / 2, y: 0,
+                let frame = CGRect(x: boundary - blackKeyWidth / 2, y: keyTop,
                                    width: blackKeyWidth, height: blackKeyHeight)
                 keys.append(PianoKey(note: note(octave: octave, semitone: entry.semitone),
                                      isBlack: true, frame: frame))
