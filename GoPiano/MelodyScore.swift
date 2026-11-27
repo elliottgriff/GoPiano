@@ -76,6 +76,9 @@ struct MelodyScore: Codable, Hashable {
     /// written in bars with real note values; without it, notes are written
     /// in the order they were played.
     var timeSignature: TimeSignature?
+    /// Beats per minute, for music played to the metronome. Lets an exported
+    /// MIDI file carry the tempo it was played at, so a DAW's grid lines up.
+    var tempo: Double?
 
     var isEmpty: Bool { spans.isEmpty }
 
@@ -140,6 +143,14 @@ struct ScoreRecorder {
                                  start: held.start,
                                  end: max(time, held.start + 0.05),
                                  velocity: held.velocity))
+    }
+
+    /// The take so far, with notes still held lasting until `time`.
+    func snapshot(at time: TimeInterval) -> [NoteSpan] {
+        finished + open.map { note, held in
+            NoteSpan(note: note, start: held.start,
+                     end: max(time, held.start + 0.05), velocity: held.velocity)
+        }
     }
 
     /// Closes anything still held and returns the finished score.

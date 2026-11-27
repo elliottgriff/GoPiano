@@ -32,6 +32,7 @@ struct ScoreView: View {
             case .metered(let music):
                 MeteredPage(music: music,
                             layout: MeteredMusic.Layout(space: space, width: proxy.size.width),
+                            isLive: conductor.isRecording,
                             current: currentPosition(in: music))
             }
         }
@@ -110,6 +111,8 @@ private struct WrittenPage: View {
 private struct MeteredPage: View {
     let music: MeteredMusic
     let layout: MeteredMusic.Layout
+    /// Being written to the click: keep the newest bar in view.
+    let isLive: Bool
     let current: MeteredMusic.Position?
 
     var body: some View {
@@ -132,7 +135,9 @@ private struct MeteredPage: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .onChange(of: music) { reader.scrollTo(0, anchor: .top) }
+            .onChange(of: music) {
+                reader.scrollTo(isLive ? systems.count - 1 : 0, anchor: isLive ? .bottom : .top)
+            }
             .onChange(of: current) {
                 guard let current,
                       let line = systems.firstIndex(where: { $0.contains(current.measure) }) else { return }

@@ -383,7 +383,8 @@ struct ContentView: View {
     /// An inset display rather than an outlined box, and red while a take is
     /// running - the one state that most needs to be unmissable.
     private var timeReadout: some View {
-        Text(saveConfirmation ?? format(elapsed))
+        // Counting in, the clock counts the beats down to the downbeat.
+        Text(conductor.isCountingIn ? "\(conductor.countInBeatsLeft)" : saveConfirmation ?? format(elapsed))
             .font(.system(.callout, design: .monospaced).weight(.medium))
             .foregroundStyle(conductor.isRecording
                              ? Color(red: 1.0, green: 0.38, blue: 0.33)

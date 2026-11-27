@@ -85,7 +85,7 @@ struct MeteredMusic: Equatable {
             return lower.seconds + (beat - lower.beat) * (upper.seconds - lower.seconds) / span
         }
 
-        let lastEnd = spans.map { snap($0.beat! + $0.beats!) }.max() ?? bar
+        let lastEnd = spans.map { snap($0.beat! + $0.beats!) - 1e-9 }.max() ?? bar
         let barCount = max(1, Int((lastEnd / bar - 1e-9).rounded(.up)))
         var measures = Array(repeating: Measure(), count: barCount)
         let total = Double(barCount) * bar
@@ -99,8 +99,24 @@ struct MeteredMusic: Equatable {
             var cursor = 0.0
             for (index, chord) in chords.enumerated() {
                 let onset = chord.key
-                let next = index + 1 < chords.count ? chords[index + 1].key : .infinity
-                let held = chord.value.map { snap($0.beat! + $0.beats!) }.max() ?? onset
+                let rawHeld = chord.value.map { $0.beat! + $0.beats! }.max() ?? onset
+                // The next thing on this staff: its next note, or for the last
+                // note, the end of the bar it's let go in - held over a bar
+                // line, it's tied into the next bar, not cut off at it.
+                let next = index + 1 < chords.count
+                    ? chords[index + 1].key
+                    : min(total, max(((onset / bar + 1e-9).rounded(.down) + 1) * bar,
+                                     (rawHeld / bar - 1e-9).rounded(.up) * bar))
+                var held = snap(rawHeld)
+                // Players let go a little early, and files often store notes a
+                // touch short of their full value. A note released just before
+                // the next one is written to it - otherwise a whole note held
+                // for 95% of the bar came out as a dotted half, an eighth and
+                // a sliver of rest. Only a real gap becomes a rest.
+                let gap = next - rawHeld
+                if gap > 0, gap <= max(Self.grid, (rawHeld - onset) * 0.25) {
+                    held = next
+                }
                 let end = max(onset + Self.grid, min(held, next))
                 if onset > cursor + 1e-9 { segments.append((cursor, onset, [])) }
                 segments.append((onset, end, Array(Set(chord.value.map(\.note))).sorted()))
@@ -390,19 +406,78 @@ struct MeteredMusic: Equatable {
                                 width: space * 1.2, height: space * 0.5))
         case 2:
             context.fill(CGRect(x: x, y: middleY - space * 0.5, width: space * 1.2, height: space * 0.5))
+        case 1:
+            drawQuarterRest(x: x, middleY: middleY, space: space, colour: style.ink, in: context)
         default:
-            let glyph = switch item.value.base {
-            case 1: "𝄽"
-            case 0.5: "𝄾"
-            default: "𝄿"
-            }
-            SheetMusic.drawText(glyph, size: space * 3.6, centre: CGPoint(x: x + space * 0.6, y: middleY),
-                                colour: style.ink, in: context)
+            drawFlaggedRest(flags: item.value.base == 0.5 ? 1 : 2, x: x, middleY: middleY,
+                            space: space, colour: style.ink, in: context)
         }
         if item.value.dotted {
             let radius = space * 0.2
             context.fillEllipse(in: CGRect(x: x + space * 1.7 - radius, y: middleY - space * 0.5 - radius,
                                            width: radius * 2, height: radius * 2))
+        }
+    }
+
+    // The shorter rests are drawn rather than set as text: the system font
+    // has the clefs but not these, and printed them as boxes.
+
+    /// The quarter rest's zigzag, with its hooked foot.
+    private static func drawQuarterRest(x: CGFloat,
+                                        middleY: CGFloat,
+                                        space: CGFloat,
+                                        colour: CGColor,
+                                        in context: CGContext) {
+        func point(_ dx: CGFloat, _ dy: CGFloat) -> CGPoint {
+            CGPoint(x: x + dx * space, y: middleY + dy * space)
+        }
+        let rest = CGMutablePath()
+        rest.move(to: point(0.35, -1.5))
+        rest.addLine(to: point(1.0, -0.7))
+        rest.addLine(to: point(0.45, 0.0))
+        rest.addLine(to: point(1.0, 0.65))
+        rest.addQuadCurve(to: point(0.6, 1.45), control: point(0.15, 0.75))
+        context.addPath(rest)
+        context.setStrokeColor(colour)
+        context.setLineWidth(space * 0.3)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.strokePath()
+    }
+
+    /// An eighth rest - a dot with a stroke falling from it - or a sixteenth,
+    /// with a second dot further down the same stroke.
+    private static func drawFlaggedRest(flags: Int,
+                                        x: CGFloat,
+                                        middleY: CGFloat,
+                                        space: CGFloat,
+                                        colour: CGColor,
+                                        in context: CGContext) {
+        func point(_ dx: CGFloat, _ dy: CGFloat) -> CGPoint {
+            CGPoint(x: x + dx * space, y: middleY + dy * space)
+        }
+        context.setFillColor(colour)
+        context.setStrokeColor(colour)
+        context.setLineWidth(space * 0.16)
+        context.setLineCap(.round)
+        let bottom: CGFloat = flags > 1 ? 1.9 : 1.0
+        let stem = CGMutablePath()
+        stem.move(to: point(1.15, -0.75))
+        stem.addLine(to: point(1.15 - 0.4 * (bottom + 0.75), bottom))
+        context.addPath(stem)
+        context.strokePath()
+        for index in 0..<flags {
+            let drop = CGFloat(index)
+            let radius = space * 0.3
+            let dot = point(0.4 - drop * 0.35, -0.55 + drop)
+            context.fillEllipse(in: CGRect(x: dot.x - radius, y: dot.y - radius,
+                                           width: radius * 2, height: radius * 2))
+            let arm = CGMutablePath()
+            arm.move(to: CGPoint(x: dot.x + radius * 0.4, y: dot.y + radius * 0.6))
+            arm.addQuadCurve(to: point(1.15 - drop * 0.4, -0.75 + drop),
+                             control: point(0.85 - drop * 0.35, -0.2 + drop))
+            context.addPath(arm)
+            context.strokePath()
         }
     }
 

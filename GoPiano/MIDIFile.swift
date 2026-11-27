@@ -36,8 +36,17 @@ enum MIDIFile {
     /// representation of a free performance.
     static let microsecondsPerQuarterNote = 500_000
 
-    private static let ticksPerSecond =
-        Double(ticksPerQuarterNote) * 1_000_000 / Double(microsecondsPerQuarterNote)
+    /// A melody played to the metronome is written at the tempo it was played
+    /// to, with its time signature, so a DAW's bars line up with the playing.
+    /// Anything else keeps the declared 120.
+    private static func microseconds(for score: MelodyScore) -> Int {
+        guard let tempo = score.tempo, tempo > 0 else { return microsecondsPerQuarterNote }
+        return Int((60_000_000 / tempo).rounded())
+    }
+
+    private static func ticksPerSecond(for score: MelodyScore) -> Double {
+        Double(ticksPerQuarterNote) * 1_000_000 / Double(microseconds(for: score))
+    }
 
     /// Acoustic grand piano, so the melody arrives sounding like what was played.
     private static let program: UInt8 = 0
@@ -95,10 +104,18 @@ enum MIDIFile {
         track.append(variableLength(0))
         track.append(contentsOf: [0xFF, 0x51, 0x03])            // tempo
         track.append(contentsOf: [
-            UInt8((microsecondsPerQuarterNote >> 16) & 0xFF),
-            UInt8((microsecondsPerQuarterNote >> 8) & 0xFF),
-            UInt8(microsecondsPerQuarterNote & 0xFF),
+            UInt8((microseconds(for: score) >> 16) & 0xFF),
+            UInt8((microseconds(for: score) >> 8) & 0xFF),
+            UInt8(microseconds(for: score) & 0xFF),
         ])
+
+        if let signature = score.timeSignature {
+            track.append(variableLength(0))
+            track.append(contentsOf: [0xFF, 0x58, 0x04,             // time signature
+                                      UInt8(signature.beats),
+                                      UInt8(signature.unit.trailingZeroBitCount),
+                                      24, 8])
+        }
 
         track.append(variableLength(0))
         track.append(contentsOf: [0xC0 | channel, program])     // program change
@@ -127,12 +144,13 @@ enum MIDIFile {
     }
 
     private static func events(for score: MelodyScore) -> [Event] {
+        let perSecond = ticksPerSecond(for: score)
         var events: [Event] = []
         for span in score.spans {
-            let start = ticks(span.start)
+            let start = ticks(span.start, perSecond: perSecond)
             // A note that rounds to zero length is dropped by some hosts, so
             // every note keeps at least one tick.
-            let end = max(ticks(span.end), start + 1)
+            let end = max(ticks(span.end, perSecond: perSecond), start + 1)
             events.append(Event(tick: start, isOff: false, note: span.note,
                                 velocity: max(1, span.velocity)))
             events.append(Event(tick: end, isOff: true, note: span.note, velocity: 0))
@@ -150,8 +168,8 @@ enum MIDIFile {
             .map(\.element)
     }
 
-    private static func ticks(_ seconds: TimeInterval) -> Int {
-        max(0, Int((seconds * ticksPerSecond).rounded()))
+    private static func ticks(_ seconds: TimeInterval, perSecond: Double) -> Int {
+        max(0, Int((seconds * perSecond).rounded()))
     }
 
     // MARK: - Helpers

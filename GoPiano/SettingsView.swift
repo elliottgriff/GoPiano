@@ -13,6 +13,9 @@ struct SettingsView: View {
     @Environment(Conductor.self) private var conductor
     @Binding var showsLabels: Bool
     @AppStorage("touchDynamics") private var touchDynamics = true
+    @AppStorage(Conductor.metronomeKey) private var metronome = false
+    @AppStorage(Conductor.tempoKey) private var tempo = 100
+    @AppStorage(Conductor.beatsPerBarKey) private var beatsPerBar = 4
 
     // The samples are CC BY 3.0, which is not attribution-optional: it wants
     // the author, the work, a link to the licence, and a note that the work was
@@ -43,6 +46,22 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                Toggle(isOn: $metronome) {
+                    Text("Metronome")
+                    Text("Counts you in and clicks while you record, so takes are written in bars")
+                }
+                if metronome {
+                    Stepper("Tempo  \(tempo)", value: $tempo, in: 40...220, step: 4)
+                    Picker("Time", selection: $beatsPerBar) {
+                        Text("2/4").tag(2)
+                        Text("3/4").tag(3)
+                        Text("4/4").tag(4)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
             Section("Credits") {
                 // The links sit inside the sentence rather than on a row of
                 // their own: the row was what pushed them off the bottom of
@@ -58,7 +77,8 @@ struct SettingsView: View {
         // contents above are kept short rather than the box made taller.
         // Wide enough that the dynamics line stays on one line: on two, it
         // pushed the end of the licence credit below the popover's edge.
-        .frame(idealWidth: 370, idealHeight: 340)
+        // Scrolls on a phone in landscape; a popover can't be taller than that.
+        .frame(idealWidth: 370, idealHeight: 470)
         // Dark like the instrument it sits over, not a bright card on top.
         .preferredColorScheme(.dark)
     }
