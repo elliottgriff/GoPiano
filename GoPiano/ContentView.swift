@@ -17,7 +17,7 @@ struct ContentView: View {
     /// keyboard rather than one octave of enormous keys.
     @AppStorage("hasChosenOctaveCount") private var hasChosenOctaveCount = false
 
-    /// Mirrors `Conductor.takeDuration` so the readout redraws as it ticks.
+    /// Mirrors `Conductor.readoutTime` so the readout redraws as it ticks.
     @State private var elapsed: TimeInterval = 0
     @State private var showRecordings = false
     @State private var saveConfirmation: String?
@@ -27,7 +27,9 @@ struct ContentView: View {
     @State private var showSettings = false
     /// A melody imported from the library, waiting for the sheet to go so it
     /// can be played on the keyboard rather than behind it.
-    @State private var importedScore: MelodyScore?
+    @State private var imported: (score: MelodyScore, name: String)?
+    @State private var isConfirmingReset = false
+    @State private var isExplainingImportSave = false
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -70,7 +72,7 @@ struct ContentView: View {
         .background(Self.bezelColor.ignoresSafeArea())
         .overlay(alignment: .top) { startupError }
         .sheet(isPresented: $showRecordings, onDismiss: playImported) {
-            RecordingsView(onImport: { importedScore = $0 })
+            RecordingsView(onImport: { imported = ($0, $1) })
         }
         .alert("Save Melody", isPresented: $isNamingTake) {
             TextField("Name", text: $takeName)
@@ -78,6 +80,17 @@ struct ContentView: View {
             Button("Save") { save(as: takeName) }
         } message: {
             Text("Saved melodies appear in the Files app and can be shared.")
+        }
+        .alert("Discard This Take?", isPresented: $isConfirmingReset) {
+            Button("Discard", role: .destructive) { resetTake() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It hasn't been saved, so it can't be got back.")
+        }
+        .alert("Imported Songs Can't Be Saved Yet", isPresented: $isExplainingImportSave) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("An imported song is only its notes, with no recording behind it, so there's nothing to save as a melody. The file itself is still wherever you imported it from.")
         }
         .alert("Couldn't Save",
                isPresented: Binding(get: { saveError != nil },
@@ -95,7 +108,7 @@ struct ContentView: View {
             // Read off the recorder's own clock rather than adding 0.05 to a
             // counter: ticks arrive late under load, so a late tick now shows
             // up as a less frequent update instead of a short take.
-            let shown = conductor.takeDuration
+            let shown = conductor.readoutTime
             if shown != elapsed { elapsed = shown }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -106,24 +119,15 @@ struct ContentView: View {
     // MARK: - Controls
 
     private var controlBar: some View {
-        HStack(spacing: 14) {
-            Toggle("", isOn: Binding(
-                get: { octaveCount > 1 },
-                set: {
-                    hasChosenOctaveCount = true
-                    octaveCount = $0 ? maxOctaves : 1
-                    clampOctave()
-                }
-            ))
-            .labelsHidden()
-            .accessibilityLabel(octaveCount > 1
-                                ? "Show one octave"
-                                : "Show \(maxOctaves) octaves")
-
+        // 12 apart rather than 14: on a current iPhone the row had about 14
+        // points to spare, and the octave range needed more than that.
+        HStack(spacing: 12) {
             circleButton("minus", enabled: firstOctave > 0) {
                 firstOctave -= 1
             }
             .accessibilityLabel("Octave down")
+
+            rangeButton
 
             circleButton("plus", enabled: firstOctave < maxFirstOctave) {
                 firstOctave += 1
@@ -142,8 +146,14 @@ struct ContentView: View {
             .accessibilityLabel(conductor.isSustaining ? "Sustain on" : "Sustain off")
 
             circleButton("arrow.counterclockwise", enabled: conductor.canPlay || conductor.isRecording) {
-                conductor.reset()
-                elapsed = 0
+                // Sits right beside Record, so a slip is easy. Asking every
+                // time would be a tax; asking only when a take would be lost
+                // is not.
+                if conductor.isRecording || conductor.hasUnsavedTake {
+                    isConfirmingReset = true
+                } else {
+                    resetTake()
+                }
             }
             .accessibilityLabel("Reset recording")
 
@@ -161,9 +171,20 @@ struct ContentView: View {
             }
             .accessibilityLabel(conductor.isPlaying ? "Pause playback" : "Play recording")
 
-            circleButton("square.and.arrow.down", enabled: conductor.hasRecording && !conductor.isRecording) {
-                takeName = RecordingStore.shared.suggestedName()
-                isNamingTake = true
+            // Enabled for an import too, so a tap can say why it can't be saved
+            // - a greyed-out button on a phone explains nothing, and there is
+            // no hover to hang a tooltip on.
+            circleButton("square.and.arrow.down",
+                         enabled: (conductor.hasUnsavedTake || conductor.hasSequence) && !conductor.isRecording) {
+                // An import on screen is what the player is looking at, so a
+                // tap means "save this" - explain, rather than quietly saving
+                // an earlier take they can't see.
+                if conductor.hasSequence {
+                    isExplainingImportSave = true
+                } else {
+                    takeName = RecordingStore.shared.suggestedName()
+                    isNamingTake = true
+                }
             }
             .accessibilityLabel("Save recording")
 
@@ -206,10 +227,40 @@ struct ContentView: View {
             .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .frame(minWidth: 104)
+            .frame(minWidth: 88)
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .background(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.7), lineWidth: 2))
+    }
+
+    /// The notes on screen, between the buttons that move them - a stepper, read
+    /// as one. Tapping it switches between one octave and as many as fit. It
+    /// replaces an unlabelled switch that did the same thing without saying so,
+    /// and it is the only place that says where on the keyboard you are once
+    /// note names are off.
+    private var rangeButton: some View {
+        let low = PianoLayout.name(for: UInt8(clamping: baseMIDINote + firstOctave * 12))
+        let high = PianoLayout.name(for: UInt8(clamping: baseMIDINote + (firstOctave + octaveCount) * 12))
+        let canWiden = maxOctaves > 1
+        return Button {
+            hasChosenOctaveCount = true
+            octaveCount = octaveCount > 1 ? 1 : maxOctaves
+            clampOctave()
+        } label: {
+            Text("\(low)–\(high)")
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 10)
+                .frame(height: 40)
+                .background(Capsule().stroke(Color.white.opacity(canWiden ? 0.6 : 0.2), lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canWiden)
+        .accessibilityLabel("Keyboard range")
+        .accessibilityValue("\(low) to \(high)")
+        .accessibilityHint(octaveCount > 1 ? "Shows one octave" : "Shows \(maxOctaves) octaves")
     }
 
     private func circleButton(_ symbol: String,
@@ -257,14 +308,22 @@ struct ContentView: View {
     /// the screen allows, and starts it. Notes outside that still sound; they
     /// just have no key on screen to light.
     private func playImported() {
-        guard let score = importedScore else { return }
-        importedScore = nil
+        guard let (score, name) = imported else { return }
+        imported = nil
         conductor.load(score)
         let framing = score.framing(maximumOctaves: maxOctaves)
         octaveCount = framing.octaveCount
         firstOctave = framing.firstOctave
         clampOctave()
         conductor.togglePlayback()
+        // The readout is the one place on screen with room for words; the
+        // song's name sits there long enough to read, then the clock returns.
+        flash(name, for: 2.5)
+    }
+
+    private func resetTake() {
+        conductor.reset()
+        elapsed = 0
     }
 
     private func save(as name: String) {
@@ -276,17 +335,19 @@ struct ContentView: View {
         }
     }
 
-    private func flash(_ message: String) {
+    private func flash(_ message: String, for seconds: Double = 1.5) {
         saveConfirmation = message
         Task {
-            try? await Task.sleep(for: .seconds(1.5))
+            try? await Task.sleep(for: .seconds(seconds))
             saveConfirmation = nil
         }
     }
 
+    /// Minutes, seconds and hundredths the way a stopwatch shows them: 0:14.50.
+    /// Written as 00:14:50 it read as fourteen minutes fifty.
     private func format(_ seconds: TimeInterval) -> String {
-        let hundredths = Int((seconds * 100).rounded())
-        return String(format: "%02d:%02d:%02d",
+        let hundredths = Int((max(0, seconds) * 100).rounded())
+        return String(format: "%d:%02d.%02d",
                       hundredths / 6000, (hundredths / 100) % 60, hundredths % 100)
     }
 }

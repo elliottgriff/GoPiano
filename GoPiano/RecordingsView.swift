@@ -17,7 +17,7 @@ struct RecordingsView: View {
 
     /// Handed an imported melody to perform on the keyboard once this sheet
     /// has gone, rather than playing it in here behind the library.
-    let onImport: (MelodyScore) -> Void
+    let onImport: (MelodyScore, _ name: String) -> Void
 
     @State private var recordings: [Recording] = []
     @State private var selection: Recording?
@@ -336,10 +336,11 @@ struct RecordingsView: View {
 
     private func importMIDI(_ result: Result<URL, any Error>) {
         do {
-            let score = try MIDIImport.score(from: try result.get())
+            let url = try result.get()
+            let score = try MIDIImport.score(from: url)
             conductor.stopPlayback()
             handedOff = true
-            onImport(score)
+            onImport(score, url.deletingPathExtension().lastPathComponent)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

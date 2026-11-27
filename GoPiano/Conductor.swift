@@ -36,6 +36,13 @@ final class Conductor {
     private(set) var transport: Transport = .idle
     private(set) var isInstrumentLoaded = false
     private(set) var hasRecording = false
+    /// A take was recorded and has not been saved. Only this can be lost, so
+    /// only this is worth a confirmation - and only this is what Save saves.
+    /// It survives opening a melody from the library or importing a file: those
+    /// change what Play plays, but the take is still on disk until it is saved,
+    /// reset, or recorded over. (`hasRecording` is also true for a library
+    /// melody, which is already safe.)
+    private(set) var hasUnsavedTake = false
     /// An imported melody is loaded: notes with no audio behind them, which
     /// the sampler has to perform. Kept apart from `hasRecording`, which means
     /// there is a take that can be saved and shared as sound.
@@ -73,6 +80,10 @@ final class Conductor {
     private var recordingStart: TimeInterval = 0
     /// The score matching whatever the player currently holds.
     private(set) var currentScore = MelodyScore()
+    /// The notes of the last take, kept apart from `currentScore`: opening a
+    /// library melody replaces that, and saving the take afterwards paired its
+    /// audio with the other melody's notes.
+    private var takeScore = MelodyScore()
     private var replayTimer: Timer?
 
     // Sequencer state - see "Performing a melody" below.
@@ -87,12 +98,20 @@ final class Conductor {
 
     private var now: TimeInterval { CACurrentMediaTime() }
 
-    /// How long the take runs: read live off the recording clock while one is
-    /// running, and the finished length once it stops. The readout used to add
-    /// up timer ticks, which drifts - the ticks arrive late under load, so the
-    /// number fell behind the take it was meant to be measuring.
-    var takeDuration: TimeInterval {
-        transport == .recording ? now - recordingStart : finishedTakeDuration
+    /// What the time readout shows: the take growing while it records, how far
+    /// in while something plays, and otherwise how long the loaded melody runs.
+    /// Always read off a real clock - adding up timer ticks drifts, because the
+    /// ticks arrive late under load.
+    var readoutTime: TimeInterval {
+        switch transport {
+        case .recording:
+            return now - recordingStart
+        case .playing:
+            let position = hasSequence ? now - sequenceStart : player.currentTime
+            return min(max(0, position), finishedTakeDuration)
+        case .idle:
+            return finishedTakeDuration
+        }
     }
 
     private var finishedTakeDuration: TimeInterval = 0
@@ -385,6 +404,7 @@ final class Conductor {
             scoreRecorder.reset()
             recordingStart = now
             finishedTakeDuration = 0
+            hasUnsavedTake = false
             currentScore = MelodyScore()
             transport = .recording
         } catch {
@@ -399,9 +419,11 @@ final class Conductor {
         transport = .idle
         finishedTakeDuration = elapsed
         currentScore = scoreRecorder.finish(at: elapsed)
+        takeScore = currentScore
         if let file = recorder.audioFile, file.length > 0 {
             try? player.load(file: file)
             hasRecording = true
+            hasUnsavedTake = true
         }
     }
 
@@ -449,6 +471,7 @@ final class Conductor {
         currentScore = RecordingStore.shared.score(for: recording) ?? MelodyScore()
         hasRecording = true
         hasSequence = false
+        finishedTakeDuration = recording.duration
         transport = .idle
     }
 
@@ -472,6 +495,8 @@ final class Conductor {
         stopReplay()
         stopSequence()
         hasSequence = false
+        hasUnsavedTake = false
+        takeScore = MelodyScore()
         sequence = []
         allNotesOff()
         setSustain(false)
@@ -623,11 +648,13 @@ final class Conductor {
     /// Encodes the current take into the recordings library, along with the
     /// notes that were played so it can be replayed and exported as video.
     func saveRecording(named name: String) throws -> Recording {
-        guard let source = recorder?.audioFile?.url, hasRecording else {
+        guard let source = recorder?.audioFile?.url, hasUnsavedTake else {
             throw RecordingStoreError.noTake
         }
-        return try RecordingStore.shared.save(copying: source,
-                                              named: name,
-                                              score: currentScore)
+        let saved = try RecordingStore.shared.save(copying: source,
+                                                   named: name,
+                                                   score: takeScore)
+        hasUnsavedTake = false
+        return saved
     }
 }

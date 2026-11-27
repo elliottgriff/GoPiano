@@ -15,9 +15,12 @@ import UIKit
 enum KeyboardRenderer {
     static let background = UIColor(white: 0.65, alpha: 1)
     static let whiteKey = UIColor.white
-    static let whiteKeyPressed = UIColor(red: 1.0, green: 0.78, blue: 0.76, alpha: 1)
+    // One hue for every held key, white or black, strong enough to follow a
+    // replay at a glance. It used to be a pale pink on white keys and a mid
+    // grey on black ones - two colours, both easy to miss.
+    static let whiteKeyPressed = UIColor(red: 1.0, green: 0.55, blue: 0.45, alpha: 1)
     static let blackKey = UIColor(white: 0.07, alpha: 1)
-    static let blackKeyPressed = UIColor(white: 0.5, alpha: 1)
+    static let blackKeyPressed = UIColor(red: 0.84, green: 0.33, blue: 0.26, alpha: 1)
     static let keyBorder = UIColor(white: 0, alpha: 0.25)
     static let label = UIColor(white: 0, alpha: 0.45)
 
