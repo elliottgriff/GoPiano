@@ -60,9 +60,8 @@ struct RecordingsView: View {
                 }
             }
         }
-        // Dark, like the instrument it slides up over. A bright standard sheet
-        // made it look like a second app.
-        .preferredColorScheme(.dark)
+        // Follows the instrument it slides up over - dark on the black
+        // piano, light on the ivory one - so it never looks like a second app.
         .pageSizedOnPad()
         .onAppear(perform: reload)
         .onDisappear { if !handedOff { conductor.stopPlayback() } }

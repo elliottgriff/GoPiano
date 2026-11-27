@@ -165,10 +165,19 @@ enum SheetMusic {
                                   staff: UIColor(white: 1, alpha: 0.3).cgColor,
                                   noteColour: KeyboardRenderer.noteColour(for:),
                                   highlight: UIColor(white: 1, alpha: 0.12).cgColor)
-        /// The screen's look with every note in ink, when note colours are off.
-        static func screen(coloured: Bool) -> Style {
-            coloured ? screen : Style(ink: screen.ink, staff: screen.staff,
-                                      noteColour: nil, highlight: screen.highlight)
+        /// Dark ink on the ivory page of a light-mode piano, with the note
+        /// colours deepened so yellow and green still read on it.
+        static let screenLight = Style(ink: UIColor(white: 0.1, alpha: 0.9).cgColor,
+                                       staff: UIColor(white: 0, alpha: 0.38).cgColor,
+                                       noteColour: KeyboardRenderer.inkColour(for:),
+                                       highlight: UIColor(white: 0, alpha: 0.07).cgColor)
+
+        /// The screen's look for the current appearance, with every note in
+        /// ink when note colours are off.
+        static func screen(coloured: Bool, dark: Bool = true) -> Style {
+            let base = dark ? screen : screenLight
+            return coloured ? base : Style(ink: base.ink, staff: base.staff,
+                                           noteColour: nil, highlight: base.highlight)
         }
         /// The shared page: plain ink on paper the colour of the white keys,
         /// so it reads and prints as sheet music does.

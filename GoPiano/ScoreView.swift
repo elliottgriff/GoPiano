@@ -17,6 +17,7 @@ import SwiftUI
 
 struct ScoreView: View {
     @Environment(Conductor.self) private var conductor
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage(KeyboardRenderer.coloursKey) private var noteColours = true
     @AppStorage(SheetMusic.namesKey) private var showsNames = false
 
@@ -26,7 +27,7 @@ struct ScoreView: View {
             // the end of the one before it for context.
             let lines = 20 + (showsNames ? SheetMusic.nameStrip : 0)
             let space = min(proxy.size.height / lines, 16)
-            let style = SheetMusic.Style.screen(coloured: noteColours)
+            let style = SheetMusic.Style.screen(coloured: noteColours, dark: colorScheme == .dark)
             switch conductor.page {
             case .written(let chords):
                 WrittenPage(chords: chords,
@@ -45,10 +46,9 @@ struct ScoreView: View {
             }
         }
         .background {
-            // The same lacquer as the case of the instrument: the page reads
+            // The same finish as the case of the instrument: the page reads
             // as part of the piano, not a card laid over it.
-            LinearGradient(colors: [Color(white: 0.10), Color(white: 0.05)],
-                           startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: Finish(colorScheme).page, startPoint: .top, endPoint: .bottom)
         }
         // The keys already speak every note to VoiceOver.
         .accessibilityHidden(true)
