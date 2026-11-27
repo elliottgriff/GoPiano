@@ -83,9 +83,23 @@ enum KeyboardRenderer {
                                  (1, hsb(hue, 0.80, 0.78))]))
     }
 
-    /// With note colours off, every held key takes the one red - C's.
+    /// With note colours off, a held key keeps its own colour and just looks
+    /// pressed: an ivory sunk into the shadow of its neighbours, an ebony
+    /// gone darker as it drops away from the light. With the shorter front
+    /// edge every held key gets, it reads as down without any colour.
+    private static let pressedPlain = HeldColours(
+        ivory: gradient([(0.00, rgb(0.78, 0.77, 0.74)),
+                         (0.20, rgb(0.85, 0.84, 0.81)),
+                         (1.00, rgb(0.89, 0.88, 0.85))]),
+        ivoryLip: gradient([(0, rgb(0.76, 0.75, 0.72)),
+                            (1, rgb(0.62, 0.61, 0.58))]),
+        ebonyBody: gradient([(0, rgb(0.06, 0.06, 0.07)),
+                             (1, rgb(0.01, 0.01, 0.02))]),
+        ebonyFace: gradient([(0, rgb(0.11, 0.11, 0.12)),
+                             (1, rgb(0.04, 0.04, 0.05))]))
+
     private static func heldColours(for note: UInt8, colourful: Bool) -> HeldColours {
-        held[colourful ? Int(note) % 12 : 0]
+        colourful ? held[Int(note) % 12] : pressedPlain
     }
 
     /// Where the note-colours setting is kept. On unless turned off.
