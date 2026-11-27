@@ -117,6 +117,13 @@ enum SheetMusic {
         /// A grand staff, with room above and below for ledger lines, and
         /// the strip of note names when they're shown.
         var systemHeight: CGFloat { space * (18 + (showsNames ? SheetMusic.nameStrip : 0)) }
+
+        /// A line's height: the usual, and deeper when its lowest notes hang
+        /// further below the bass staff than the usual leaves room for.
+        func height(of chords: some Collection<SheetChord>) -> CGFloat {
+            let depth = SheetMusic.depthBelowBass(chords.flatMap(\.notes))
+            return systemHeight + space * SheetMusic.extraDepth(depth, showsNames: showsNames)
+        }
         var margin: CGFloat { space * 1.2 }
         /// Where the first note goes, after the clefs.
         var notesStart: CGFloat { margin + space * 5 }
@@ -225,8 +232,32 @@ enum SheetMusic {
             drawFinalBar(at: finalBar, staff: staff, style: style, line: line, in: context)
         }
         if layout.showsNames {
-            drawNames(names, staff: staff, style: style, in: context)
+            drawNames(names, depth: depthBelowBass(chords.flatMap(\.notes)),
+                      staff: staff, style: style, in: context)
         }
+    }
+
+    // MARK: - Room below the bass staff
+
+    /// How far the lowest bass note hangs below the bass staff's bottom
+    /// line, in spaces, to the bottom of its head. Nothing hangs below for
+    /// notes on or above the staff.
+    static func depthBelowBass(_ notes: [UInt8]) -> CGFloat {
+        guard let lowest = notes.filter({ $0 < 60 }).map(Staff.position(of:)).min() else { return 0 }
+        // G2, the bottom line, is position 18; each step is half a space.
+        return max(0, CGFloat(18 - lowest) / 2 + 0.5)
+    }
+
+    /// Where the names start below the bass staff: the usual place, or just
+    /// under the lowest note if that hangs lower.
+    static func namesBelowBass(_ depth: CGFloat) -> CGFloat {
+        max(2.1, depth + 0.6)
+    }
+
+    /// The extra spaces a line needs beyond the usual so low notes - and the
+    /// names under them - don't run into the next line.
+    static func extraDepth(_ depth: CGFloat, showsNames: Bool) -> CGFloat {
+        showsNames ? namesBelowBass(depth) - 2.1 : max(0, depth - 3)
     }
 
     // MARK: - Note names
@@ -247,12 +278,15 @@ enum SheetMusic {
     /// chord reads the way it sits on the staff. In the note's colour when
     /// notes are coloured, so the name matches its head and its key.
     static func drawNames(_ columns: [(x: CGFloat, notes: [UInt8])],
+                          depth: CGFloat,
                           staff: Staff,
                           style: Style,
                           in context: CGContext) {
         let space = staff.space
-        // Clear of ledger lines hanging below the bass staff.
-        let top = staff.bassBottom + space * 2.1
+        // Clear of the line's lowest note and its ledger lines, however far
+        // below the bass staff that is - one strip for the whole line, so
+        // the names still read along it.
+        let top = staff.bassBottom + space * namesBelowBass(depth)
         for column in columns where !column.notes.isEmpty {
             let notes = Array(Set(column.notes)).sorted(by: >)
             // A big chord squeezes into the strip rather than spilling out.
@@ -602,14 +636,14 @@ enum SheetMusicPDF {
         let musicBottom = paper.height - margin - 16
 
         let systemCount: Int
-        let systemHeight: CGFloat
+        let heights: [CGFloat]
         let drawSystem: (Int, CGFloat, CGContext) -> Void
         switch SheetPage(score: score) {
         case .metered(let music):
             let layout = MeteredMusic.Layout(space: space, width: width, showsNames: showsNames)
             let systems = layout.systems(for: music)
             systemCount = systems.count
-            systemHeight = layout.systemHeight
+            heights = systems.map { layout.height(of: music, measures: $0) }
             drawSystem = { index, top, context in
                 MeteredMusic.drawSystem(music, measures: systems[index], layout: layout,
                                         top: top, style: .page, in: context)
@@ -618,7 +652,7 @@ enum SheetMusicPDF {
             let layout = SheetMusic.Layout(space: space, width: width, showsNames: showsNames)
             let systems = layout.systems(for: chords)
             systemCount = systems.count
-            systemHeight = layout.systemHeight
+            heights = systems.map { layout.height(of: chords[$0]) }
             drawSystem = { index, top, context in
                 SheetMusic.drawSystem(Array(chords[systems[index]]), layout: layout, top: top,
                                       style: .page, endsSong: index == systems.count - 1,
@@ -637,8 +671,8 @@ enum SheetMusicPDF {
             .appendingPathExtension("pdf")
         try? FileManager.default.removeItem(at: url)
 
-        let pageCount = pages(systems: systemCount, systemHeight: systemHeight,
-                              firstTop: margin + headerHeight, top: margin, bottom: musicBottom)
+        let pageCount = pages(heights: heights, firstTop: margin + headerHeight,
+                              top: margin, bottom: musicBottom)
 
         do {
             try renderer.writePDF(to: url) { pdf in
@@ -655,13 +689,17 @@ enum SheetMusicPDF {
                                        details: details(for: score, length: length),
                                        width: paper.width, top: y, in: context)
                     }
-                    while index < systemCount, y + systemHeight <= musicBottom {
+                    // Always at least one line a page, however deep, so a
+                    // line taller than a page can't stall the loop.
+                    var placed = 0
+                    while index < systemCount, placed == 0 || y + heights[index] <= musicBottom {
                         context.saveGState()
                         context.translateBy(x: inset, y: 0)
                         drawSystem(index, y, context)
                         context.restoreGState()
-                        y += systemHeight
+                        y += heights[index]
                         index += 1
+                        placed += 1
                     }
                     drawFooter(page: page, of: pageCount, size: paper, margin: margin, in: context)
                 }
@@ -677,12 +715,22 @@ enum SheetMusicPDF {
     /// Room the first page's header takes above the music.
     private static let headerHeight: CGFloat = 110
 
-    private static func pages(systems: Int, systemHeight: CGFloat,
-                              firstTop: CGFloat, top: CGFloat, bottom: CGFloat) -> Int {
-        let first = max(1, Int((bottom - firstTop) / systemHeight))
-        let rest = max(1, Int((bottom - top) / systemHeight))
-        guard systems > first else { return 1 }
-        return 1 + Int((Double(systems - first) / Double(rest)).rounded(.up))
+    /// How many pages the lines fill, laid out exactly as they'll be drawn.
+    private static func pages(heights: [CGFloat], firstTop: CGFloat,
+                              top: CGFloat, bottom: CGFloat) -> Int {
+        var count = 0
+        var index = 0
+        while index < heights.count {
+            count += 1
+            var y = count == 1 ? firstTop : top
+            var placed = 0
+            while index < heights.count, placed == 0 || y + heights[index] <= bottom {
+                y += heights[index]
+                index += 1
+                placed += 1
+            }
+        }
+        return max(1, count)
     }
 
     /// Near-black with a little warmth, like the lacquer of the case.

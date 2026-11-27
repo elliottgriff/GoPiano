@@ -93,7 +93,7 @@ private struct WrittenPage: View {
                                                       endsSong: ends, in: cgContext)
                             }
                         }
-                        .frame(height: layout.systemHeight)
+                        .frame(height: layout.height(of: lineChords))
                         .id(index)
                     }
                 }
@@ -139,7 +139,7 @@ private struct MeteredPage: View {
                                                         highlighted: highlighted, in: cgContext)
                             }
                         }
-                        .frame(height: layout.systemHeight)
+                        .frame(height: layout.height(of: music, measures: range))
                         .id(index)
                     }
                 }

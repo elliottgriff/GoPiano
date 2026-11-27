@@ -220,6 +220,14 @@ struct MeteredMusic: Equatable {
         var showsNames = false
 
         var systemHeight: CGFloat { space * (18 + (showsNames ? SheetMusic.nameStrip : 0)) }
+
+        /// A line's height: the usual, and deeper when its lowest notes hang
+        /// further below the bass staff than the usual leaves room for.
+        func height(of music: MeteredMusic, measures: Range<Int>) -> CGFloat {
+            let notes = measures.flatMap { music.measures[$0].bass.flatMap(\.notes) }
+            let depth = SheetMusic.depthBelowBass(notes)
+            return systemHeight + space * SheetMusic.extraDepth(depth, showsNames: showsNames)
+        }
         var margin: CGFloat { space * 1.2 }
         var notesStart: CGFloat { margin + space * 5 }
         var timeSignatureWidth: CGFloat { space * 3 }
@@ -389,7 +397,10 @@ struct MeteredMusic: Equatable {
         }
 
         if layout.showsNames {
-            SheetMusic.drawNames(names.values.flatMap(\.values), staff: staff, style: style, in: context)
+            // Every note in the line counts, tied-over ones included.
+            let depth = SheetMusic.depthBelowBass(range.flatMap { music.measures[$0].bass.flatMap(\.notes) })
+            SheetMusic.drawNames(names.values.flatMap(\.values), depth: depth,
+                                 staff: staff, style: style, in: context)
         }
 
         // A tie that carries over to the next line runs off the end of this one.
