@@ -63,6 +63,7 @@ struct RecordingsView: View {
         // Dark, like the instrument it slides up over. A bright standard sheet
         // made it look like a second app.
         .preferredColorScheme(.dark)
+        .pageSizedOnPad()
         .onAppear(perform: reload)
         .onDisappear { if !handedOff { conductor.stopPlayback() } }
         .fileImporter(isPresented: $isImporting,
@@ -129,9 +130,21 @@ struct RecordingsView: View {
 
                 // Labels never wrap; if the pane is too narrow for words the
                 // whole row falls back to icons rather than stacking letters.
+                // Narrower still, Play takes a row of its own above the rest,
+                // so nothing is ever pushed off the edge of the pane.
                 ViewThatFits(in: .horizontal) {
-                    actions(for: recording, showingLabels: true)
-                    actions(for: recording, showingLabels: false)
+                    HStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: true)
+                    }
+                    HStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: false)
+                    }
+                    VStack(spacing: 10) {
+                        playButton(for: recording, showingLabels: true)
+                        actions(for: recording, showingLabels: false)
+                    }
                 }
                 .disabled(exportingVideo)
             }
@@ -143,19 +156,22 @@ struct RecordingsView: View {
         }
     }
 
+    private func playButton(for recording: Recording, showingLabels: Bool) -> some View {
+        Button {
+            togglePlay(recording)
+        } label: {
+            actionLabel(conductor.isPlaying ? "Stop" : "Play",
+                        systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
+                        showingLabels: showingLabels)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
+    /// Everything but Play: sharing, exports, and the rest.
     @ViewBuilder
     private func actions(for recording: Recording, showingLabels: Bool) -> some View {
         HStack(spacing: 10) {
-            Button {
-                togglePlay(recording)
-            } label: {
-                actionLabel(conductor.isPlaying ? "Stop" : "Play",
-                            systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
-                            showingLabels: showingLabels)
-                    .frame(maxWidth: showingLabels ? .infinity : nil)
-            }
-            .buttonStyle(.borderedProminent)
-
             ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
                 actionLabel("Share", systemImage: "square.and.arrow.up",
                             showingLabels: showingLabels)
@@ -326,7 +342,8 @@ struct RecordingsView: View {
             let played = recording.created.formatted(date: .long, time: .omitted)
             exported = ExportedFile(url: try SheetMusicPDF.write(score,
                                                                  named: recording.name,
-                                                                 subtitle: "Played on GoPiano · \(played)"),
+                                                                 subtitle: "Played \(played)",
+                                                                 length: recording.duration),
                                     kind: .sheetMusic)
         } catch {
             errorMessage = error.localizedDescription
@@ -460,4 +477,17 @@ struct ExportShareSheet: View {
 
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
+}
+
+private extension View {
+    /// On iPad the standard form sheet is too narrow for the list beside a
+    /// melody's keys and actions; a page-sized sheet gives the detail room.
+    @ViewBuilder
+    func pageSizedOnPad() -> some View {
+        if #available(iOS 18.0, *) {
+            presentationSizing(.page)
+        } else {
+            self
+        }
+    }
 }

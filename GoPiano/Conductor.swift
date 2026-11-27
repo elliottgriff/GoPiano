@@ -164,7 +164,10 @@ final class Conductor {
             try engine.start()
             // Effect parameters are only writable once the engine has
             // instantiated the underlying audio units.
-            reverb.loadFactoryPreset(.mediumRoom)
+            // A hall rather than a room: the samples die away within a second
+            // and a half, and the hall's longer tail is what lets a note ring
+            // on the way a piano's does.
+            reverb.loadFactoryPreset(.largeHall)
             reverb.dryWetMix = AUValue(reverbMix)
 
             // Set before the samples are handed over: swapping in new sampler
@@ -269,7 +272,9 @@ final class Conductor {
     /// current sampler, and writes made straight afterwards are rejected.
     private func applySamplerParameters() {
         sampler.masterVolume = 0.9
-        sampler.releaseDuration = 0.45
+        // Long enough that a note let go rings on into its own decay rather
+        // than being cut off; the samples have faded by 1.4s regardless.
+        sampler.releaseDuration = 1.0
     }
 
     private func configureSession() throws {

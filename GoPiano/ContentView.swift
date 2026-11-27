@@ -501,7 +501,7 @@ struct ContentView: View {
         do {
             sharedFile = ExportedFile(url: try SheetMusicPDF.write(conductor.currentScore,
                                                                    named: importName,
-                                                                   subtitle: "Imported into GoPiano"),
+                                                                   subtitle: "Imported from a MIDI file"),
                                       kind: .sheetMusic)
         } catch {
             saveError = error.localizedDescription

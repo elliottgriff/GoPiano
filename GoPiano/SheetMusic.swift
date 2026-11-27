@@ -146,20 +146,21 @@ enum SheetMusic {
         /// Clefs, stems, flags, rests and accidentals.
         let ink: CGColor
         let staff: CGColor
-        /// Noteheads in their key's colour, or all in ink.
-        let colouredNotes: Bool
+        /// Each notehead's colour, from its key; nil writes them all in ink.
+        let noteColour: ((UInt8) -> CGColor)?
         let highlight: CGColor
 
         /// Light on the lacquer above the keys, notes in their key colours.
         static let screen = Style(ink: UIColor(white: 1, alpha: 0.85).cgColor,
                                   staff: UIColor(white: 1, alpha: 0.3).cgColor,
-                                  colouredNotes: true,
+                                  noteColour: KeyboardRenderer.noteColour(for:),
                                   highlight: UIColor(white: 1, alpha: 0.12).cgColor)
-        /// Black ink on white, as printed music is.
-        static let print = Style(ink: UIColor.black.cgColor,
-                                 staff: UIColor(white: 0, alpha: 0.7).cgColor,
-                                 colouredNotes: false,
-                                 highlight: UIColor.clear.cgColor)
+        /// The shared page: plain ink on paper the colour of the white keys,
+        /// so it reads and prints as sheet music does.
+        static let page = Style(ink: SheetMusicPDF.ink.cgColor,
+                                staff: SheetMusicPDF.ink.withAlphaComponent(0.55).cgColor,
+                                noteColour: nil,
+                                highlight: UIColor.clear.cgColor)
     }
 
     /// Draws one line of freely played music - a grand staff, its clefs and its
@@ -334,7 +335,7 @@ enum SheetMusic {
         for (index, entry) in entries.enumerated() {
             let centre = CGPoint(x: x + offsets[index] + headWidth / 2,
                                  y: staff.y(for: entry.position, treble: treble))
-            let colour = style.colouredNotes ? KeyboardRenderer.noteColour(for: entry.note) : style.ink
+            let colour = style.noteColour?(entry.note) ?? style.ink
             drawHead(at: centre, value: value, space: space, colour: colour, in: context)
             heads[entry.note] = centre
         }
@@ -527,21 +528,26 @@ enum SheetMusicError: LocalizedError {
 }
 
 enum SheetMusicPDF {
-    /// Writes `score` as printable sheet music and returns the file, ready for
+    /// Writes `score` as sheet music dressed like the app and returns the file, ready for
     /// the share sheet: the title at the top, then as many lines of music as
     /// the song needs, over as many pages. Music that came with its beat is
     /// written in bars with real note values; anything else, note by note.
-    static func write(_ score: MelodyScore, named name: String, subtitle: String) throws -> URL {
+    /// `length` is the recording's own, where there is one, so the page agrees
+    /// with the library; otherwise the notes' is used.
+    static func write(_ score: MelodyScore, named name: String, subtitle: String,
+                      length: TimeInterval? = nil) throws -> URL {
         guard !score.isEmpty else { throw SheetMusicError.noNotes }
 
         // Letter where it's the norm, A4 everywhere else.
         let paper = Locale.current.measurementSystem == .us
             ? CGSize(width: 612, height: 792)
             : CGSize(width: 595, height: 842)
-        let margin: CGFloat = 54
+        let margin: CGFloat = 48
         let space: CGFloat = 6.5
         let inset = margin - space * 1.2
         let width = paper.width - inset * 2
+        // The music stops above the page number.
+        let musicBottom = paper.height - margin - 16
 
         let systemCount: Int
         let systemHeight: CGFloat
@@ -554,7 +560,7 @@ enum SheetMusicPDF {
             systemHeight = layout.systemHeight
             drawSystem = { index, top, context in
                 MeteredMusic.drawSystem(music, measures: systems[index], layout: layout,
-                                        top: top, style: .print, in: context)
+                                        top: top, style: .page, in: context)
             }
         case .written(let chords):
             let layout = SheetMusic.Layout(space: space, width: width)
@@ -563,7 +569,7 @@ enum SheetMusicPDF {
             systemHeight = layout.systemHeight
             drawSystem = { index, top, context in
                 SheetMusic.drawSystem(Array(chords[systems[index]]), layout: layout, top: top,
-                                      style: .print, endsSong: index == systems.count - 1,
+                                      style: .page, endsSong: index == systems.count - 1,
                                       in: context)
             }
         }
@@ -579,6 +585,9 @@ enum SheetMusicPDF {
             .appendingPathExtension("pdf")
         try? FileManager.default.removeItem(at: url)
 
+        let pageCount = pages(systems: systemCount, systemHeight: systemHeight,
+                              firstTop: margin + headerHeight, top: margin, bottom: musicBottom)
+
         do {
             try renderer.writePDF(to: url) { pdf in
                 let context = pdf.cgContext
@@ -587,11 +596,13 @@ enum SheetMusicPDF {
                 while index < systemCount {
                     pdf.beginPage()
                     page += 1
+                    drawPaper(size: paper, in: context)
                     var y = margin
                     if page == 1 {
-                        y = drawTitle(name, subtitle: subtitle, width: paper.width, top: y)
+                        y = drawHeader(name, subtitle: subtitle, chips: chips(for: score, length: length),
+                                       width: paper.width, top: y, in: context)
                     }
-                    while index < systemCount, y + systemHeight <= paper.height - margin - 16 {
+                    while index < systemCount, y + systemHeight <= musicBottom {
                         context.saveGState()
                         context.translateBy(x: inset, y: 0)
                         drawSystem(index, y, context)
@@ -599,7 +610,7 @@ enum SheetMusicPDF {
                         y += systemHeight
                         index += 1
                     }
-                    drawFooter(page: page, size: paper, margin: margin)
+                    drawPageNumber(page, of: pageCount, size: paper, bottom: paper.height - margin)
                 }
             }
         } catch {
@@ -608,35 +619,125 @@ enum SheetMusicPDF {
         return url
     }
 
-    /// The song's name, centred, with a line beneath saying where it came from.
-    private static func drawTitle(_ name: String, subtitle: String, width: CGFloat, top: CGFloat) -> CGFloat {
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        var titleFont = UIFont.systemFont(ofSize: 22, weight: .semibold)
-        if let serif = titleFont.fontDescriptor.withDesign(.serif) {
-            titleFont = UIFont(descriptor: serif, size: 22)
-        }
-        let title = NSAttributedString(string: name, attributes: [
-            .font: titleFont, .foregroundColor: UIColor.black, .paragraphStyle: style,
-        ])
-        let detail = NSAttributedString(string: subtitle, attributes: [
-            .font: UIFont.systemFont(ofSize: 10), .foregroundColor: UIColor.darkGray,
-            .paragraphStyle: style,
-        ])
-        let titleHeight = title.size().height
-        title.draw(in: CGRect(x: 0, y: top, width: width, height: titleHeight))
-        detail.draw(in: CGRect(x: 0, y: top + titleHeight + 4, width: width, height: 14))
-        return top + titleHeight + 34
+    // MARK: - The page
+
+    /// Room the first page's header takes above the music.
+    private static let headerHeight: CGFloat = 116
+
+    private static func pages(systems: Int, systemHeight: CGFloat,
+                              firstTop: CGFloat, top: CGFloat, bottom: CGFloat) -> Int {
+        let first = max(1, Int((bottom - firstTop) / systemHeight))
+        let rest = max(1, Int((bottom - top) / systemHeight))
+        guard systems > first else { return 1 }
+        return 1 + Int((Double(systems - first) / Double(rest)).rounded(.up))
     }
 
-    private static func drawFooter(page: Int, size: CGSize, margin: CGFloat) {
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        let footer = NSAttributedString(string: "\(page)", attributes: [
-            .font: UIFont.systemFont(ofSize: 9), .foregroundColor: UIColor.gray,
-            .paragraphStyle: style,
+    /// Near-black with a little warmth, like the lacquer of the case.
+    static let ink = UIColor(red: 0.11, green: 0.10, blue: 0.10, alpha: 1)
+    /// The ivory of the white keys.
+    private static let paper = UIColor(red: 0.995, green: 0.99, blue: 0.975, alpha: 1)
+    /// The fallboard's gold, deepened to read on paper.
+    private static let gold = UIColor(red: 0.60, green: 0.46, blue: 0.22, alpha: 1)
+
+    private static func drawPaper(size: CGSize, in context: CGContext) {
+        context.setFillColor(paper.cgColor)
+        context.fill(CGRect(origin: .zero, size: size))
+    }
+
+    /// The tempo, metre and length, as the control bar would show them.
+    private static func chips(for score: MelodyScore, length: TimeInterval?) -> [String] {
+        var chips: [String] = []
+        if let tempo = score.tempo { chips.append("\u{2669} = \(Int(tempo.rounded()))") }
+        if let signature = score.timeSignature { chips.append("\(signature.beats)/\(signature.unit)") }
+        let length = length ?? max(score.duration, score.spans.map(\.end).max() ?? 0)
+        // Whole seconds, counted as the library counts them.
+        let seconds = Int(length.rounded())
+        chips.append(String(format: "%d:%02d", seconds / 60, seconds % 60))
+        return chips
+    }
+
+    /// The maker's name, as on the fallboard; the song's title beneath it; and
+    /// its tempo, metre and length in capsules like the app's controls.
+    private static func drawHeader(_ name: String, subtitle: String, chips: [String],
+                                   width: CGFloat, top: CGFloat,
+                                   in context: CGContext) -> CGFloat {
+        let centred = NSMutableParagraphStyle()
+        centred.alignment = .center
+        centred.lineBreakMode = .byTruncatingTail
+
+        let maker = NSAttributedString(string: "GoPiano", attributes: [
+            .font: serif(size: 10, weight: .medium),
+            .foregroundColor: gold,
+            .kern: 10 * 0.18,
+            .paragraphStyle: centred,
         ])
-        footer.draw(in: CGRect(x: 0, y: size.height - margin + 10, width: size.width, height: 12))
+        maker.draw(in: CGRect(x: 0, y: top, width: width, height: 14))
+
+        let title = NSAttributedString(string: name, attributes: [
+            .font: serif(size: 24, weight: .semibold),
+            .foregroundColor: ink,
+            .paragraphStyle: centred,
+        ])
+        let titleTop = top + 20
+        let titleHeight = title.size().height
+        title.draw(in: CGRect(x: 40, y: titleTop, width: width - 80, height: titleHeight))
+
+        let detail = NSAttributedString(string: subtitle, attributes: [
+            .font: UIFont.systemFont(ofSize: 9.5),
+            .foregroundColor: ink.withAlphaComponent(0.5),
+            .paragraphStyle: centred,
+        ])
+        let detailTop = titleTop + titleHeight + 3
+        detail.draw(in: CGRect(x: 0, y: detailTop, width: width, height: 13))
+
+        // Capsules, centred as a row.
+        let font = UIFont.monospacedSystemFont(ofSize: 9.5, weight: .medium)
+        let labels = chips.map {
+            NSAttributedString(string: $0, attributes: [
+                .font: font, .foregroundColor: ink.withAlphaComponent(0.8),
+            ])
+        }
+        let height: CGFloat = 19
+        let padding: CGFloat = 10
+        let gap: CGFloat = 6
+        let widths = labels.map { $0.size().width + padding * 2 }
+        var x = (width - widths.reduce(0, +) - gap * CGFloat(max(0, labels.count - 1))) / 2
+        let chipTop = detailTop + 22
+        for (label, chipWidth) in zip(labels, widths) {
+            let rect = CGRect(x: x, y: chipTop, width: chipWidth, height: height)
+            let capsule = CGPath(roundedRect: rect, cornerWidth: height / 2,
+                                 cornerHeight: height / 2, transform: nil)
+            context.addPath(capsule)
+            context.setFillColor(ink.withAlphaComponent(0.05).cgColor)
+            context.fillPath()
+            context.addPath(capsule)
+            context.setStrokeColor(ink.withAlphaComponent(0.18).cgColor)
+            context.setLineWidth(0.6)
+            context.strokePath()
+            let size = label.size()
+            label.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+            x += chipWidth + gap
+        }
+        return top + headerHeight
+    }
+
+    /// The page count in the readout's figures, at the foot of the page.
+    private static func drawPageNumber(_ page: Int, of count: Int, size: CGSize, bottom: CGFloat) {
+        guard count > 1 else { return }
+        let centred = NSMutableParagraphStyle()
+        centred.alignment = .center
+        let label = NSAttributedString(string: "\(page) / \(count)", attributes: [
+            .font: UIFont.monospacedSystemFont(ofSize: 8.5, weight: .regular),
+            .foregroundColor: ink.withAlphaComponent(0.45),
+            .paragraphStyle: centred,
+        ])
+        label.draw(in: CGRect(x: 0, y: bottom + 4, width: size.width, height: 12))
+    }
+
+    private static func serif(size: CGFloat, weight: UIFont.Weight) -> UIFont {
+        let font = UIFont.systemFont(ofSize: size, weight: weight)
+        guard let descriptor = font.fontDescriptor.withDesign(.serif) else { return font }
+        return UIFont(descriptor: descriptor, size: size)
     }
 
     private static func safeFileName(_ name: String) -> String {
