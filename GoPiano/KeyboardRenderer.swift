@@ -88,15 +88,15 @@ enum KeyboardRenderer {
     /// gone darker as it drops away from the light. With the shorter front
     /// edge every held key gets, it reads as down without any colour.
     private static let pressedPlain = HeldColours(
-        ivory: gradient([(0.00, rgb(0.78, 0.77, 0.74)),
-                         (0.20, rgb(0.85, 0.84, 0.81)),
-                         (1.00, rgb(0.89, 0.88, 0.85))]),
-        ivoryLip: gradient([(0, rgb(0.76, 0.75, 0.72)),
-                            (1, rgb(0.62, 0.61, 0.58))]),
-        ebonyBody: gradient([(0, rgb(0.06, 0.06, 0.07)),
-                             (1, rgb(0.01, 0.01, 0.02))]),
-        ebonyFace: gradient([(0, rgb(0.11, 0.11, 0.12)),
-                             (1, rgb(0.04, 0.04, 0.05))]))
+        ivory: gradient([(0.00, rgb(0.70, 0.69, 0.66)),
+                         (0.20, rgb(0.77, 0.76, 0.73)),
+                         (1.00, rgb(0.82, 0.81, 0.78))]),
+        ivoryLip: gradient([(0, rgb(0.68, 0.67, 0.64)),
+                            (1, rgb(0.55, 0.54, 0.51))]),
+        ebonyBody: gradient([(0, rgb(0.04, 0.04, 0.05)),
+                             (1, rgb(0.00, 0.00, 0.01))]),
+        ebonyFace: gradient([(0, rgb(0.07, 0.07, 0.08)),
+                             (1, rgb(0.02, 0.02, 0.03))]))
 
     private static func heldColours(for note: UInt8, colourful: Bool) -> HeldColours {
         colourful ? held[Int(note) % 12] : pressedPlain
