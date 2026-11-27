@@ -8,7 +8,7 @@
 //  with it, so what is shared is what was on screen.
 //
 //  Music comes in two kinds. Music that came with a beat - an imported MIDI
-//  file - is written properly, in bars with real note values, rests and ties
+//  file, or a take recorded to the metronome - is written properly, in bars with real note values, rests and ties
 //  (MeteredMusic). Music played freely has no beat to measure rhythm against,
 //  and a guessed rhythm would be written wrong, so it is written as the notes
 //  in the order they were played, every one the same value, chords stacked,
