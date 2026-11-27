@@ -599,8 +599,12 @@ enum SheetMusicPDF {
                     drawPaper(size: paper, in: context)
                     var y = margin
                     if page == 1 {
-                        y = drawHeader(name, subtitle: subtitle, chips: chips(for: score, length: length),
-                                       width: paper.width, top: y, in: context)
+                        y = drawHeader(name,
+                                       subtitle: "\(subtitle) \u{00B7} \(lengthText(for: score, length: length))",
+                                       width: paper.width, top: y)
+                        if let tempo = score.tempo {
+                            drawTempo(tempo, x: margin, systemTop: y, space: space)
+                        }
                     }
                     while index < systemCount, y + systemHeight <= musicBottom {
                         context.saveGState()
@@ -610,7 +614,7 @@ enum SheetMusicPDF {
                         y += systemHeight
                         index += 1
                     }
-                    drawPageNumber(page, of: pageCount, size: paper, bottom: paper.height - margin)
+                    drawFooter(page: page, of: pageCount, size: paper, margin: margin, in: context)
                 }
             }
         } catch {
@@ -622,7 +626,7 @@ enum SheetMusicPDF {
     // MARK: - The page
 
     /// Room the first page's header takes above the music.
-    private static let headerHeight: CGFloat = 116
+    private static let headerHeight: CGFloat = 72
 
     private static func pages(systems: Int, systemHeight: CGFloat,
                               firstTop: CGFloat, top: CGFloat, bottom: CGFloat) -> Int {
@@ -636,102 +640,91 @@ enum SheetMusicPDF {
     static let ink = UIColor(red: 0.11, green: 0.10, blue: 0.10, alpha: 1)
     /// The ivory of the white keys.
     private static let paper = UIColor(red: 0.995, green: 0.99, blue: 0.975, alpha: 1)
-    /// The fallboard's gold, deepened to read on paper.
-    private static let gold = UIColor(red: 0.60, green: 0.46, blue: 0.22, alpha: 1)
 
     private static func drawPaper(size: CGSize, in context: CGContext) {
         context.setFillColor(paper.cgColor)
         context.fill(CGRect(origin: .zero, size: size))
     }
 
-    /// The tempo, metre and length, as the control bar would show them.
-    private static func chips(for score: MelodyScore, length: TimeInterval?) -> [String] {
-        var chips: [String] = []
-        if let tempo = score.tempo { chips.append("\u{2669} = \(Int(tempo.rounded()))") }
-        if let signature = score.timeSignature { chips.append("\(signature.beats)/\(signature.unit)") }
+    /// How long the piece runs, in whole seconds as the library counts them.
+    private static func lengthText(for score: MelodyScore, length: TimeInterval?) -> String {
         let length = length ?? max(score.duration, score.spans.map(\.end).max() ?? 0)
-        // Whole seconds, counted as the library counts them.
         let seconds = Int(length.rounded())
-        chips.append(String(format: "%d:%02d", seconds / 60, seconds % 60))
-        return chips
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    /// The maker's name, as on the fallboard; the song's title beneath it; and
-    /// its tempo, metre and length in capsules like the app's controls.
-    private static func drawHeader(_ name: String, subtitle: String, chips: [String],
-                                   width: CGFloat, top: CGFloat,
-                                   in context: CGContext) -> CGFloat {
+    /// The song's title and the line saying when and how long.
+    private static func drawHeader(_ name: String, subtitle: String,
+                                   width: CGFloat, top: CGFloat) -> CGFloat {
         let centred = NSMutableParagraphStyle()
         centred.alignment = .center
         centred.lineBreakMode = .byTruncatingTail
-
-        let maker = NSAttributedString(string: "GoPiano", attributes: [
-            .font: serif(size: 10, weight: .medium),
-            .foregroundColor: gold,
-            .kern: 10 * 0.18,
-            .paragraphStyle: centred,
-        ])
-        maker.draw(in: CGRect(x: 0, y: top, width: width, height: 14))
 
         let title = NSAttributedString(string: name, attributes: [
             .font: serif(size: 24, weight: .semibold),
             .foregroundColor: ink,
             .paragraphStyle: centred,
         ])
-        let titleTop = top + 20
+        let titleTop = top
         let titleHeight = title.size().height
         title.draw(in: CGRect(x: 40, y: titleTop, width: width - 80, height: titleHeight))
 
         let detail = NSAttributedString(string: subtitle, attributes: [
-            .font: UIFont.systemFont(ofSize: 9.5),
-            .foregroundColor: ink.withAlphaComponent(0.5),
+            .font: serif(size: 10, weight: .regular),
+            .foregroundColor: ink.withAlphaComponent(0.55),
             .paragraphStyle: centred,
         ])
-        let detailTop = titleTop + titleHeight + 3
-        detail.draw(in: CGRect(x: 0, y: detailTop, width: width, height: 13))
-
-        // Capsules, centred as a row.
-        let font = UIFont.monospacedSystemFont(ofSize: 9.5, weight: .medium)
-        let labels = chips.map {
-            NSAttributedString(string: $0, attributes: [
-                .font: font, .foregroundColor: ink.withAlphaComponent(0.8),
-            ])
-        }
-        let height: CGFloat = 19
-        let padding: CGFloat = 10
-        let gap: CGFloat = 6
-        let widths = labels.map { $0.size().width + padding * 2 }
-        var x = (width - widths.reduce(0, +) - gap * CGFloat(max(0, labels.count - 1))) / 2
-        let chipTop = detailTop + 22
-        for (label, chipWidth) in zip(labels, widths) {
-            let rect = CGRect(x: x, y: chipTop, width: chipWidth, height: height)
-            let capsule = CGPath(roundedRect: rect, cornerWidth: height / 2,
-                                 cornerHeight: height / 2, transform: nil)
-            context.addPath(capsule)
-            context.setFillColor(ink.withAlphaComponent(0.05).cgColor)
-            context.fillPath()
-            context.addPath(capsule)
-            context.setStrokeColor(ink.withAlphaComponent(0.18).cgColor)
-            context.setLineWidth(0.6)
-            context.strokePath()
-            let size = label.size()
-            label.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
-            x += chipWidth + gap
-        }
+        detail.draw(in: CGRect(x: 0, y: titleTop + titleHeight + 3, width: width, height: 14))
         return top + headerHeight
     }
 
-    /// The page count in the readout's figures, at the foot of the page.
-    private static func drawPageNumber(_ page: Int, of count: Int, size: CGSize, bottom: CGFloat) {
-        guard count > 1 else { return }
-        let centred = NSMutableParagraphStyle()
-        centred.alignment = .center
-        let label = NSAttributedString(string: "\(page) / \(count)", attributes: [
-            .font: UIFont.monospacedSystemFont(ofSize: 8.5, weight: .regular),
-            .foregroundColor: ink.withAlphaComponent(0.45),
-            .paragraphStyle: centred,
+    /// The tempo marking, over the start of the first line as a score has it.
+    private static func drawTempo(_ tempo: Double, x: CGFloat, systemTop: CGFloat, space: CGFloat) {
+        let marking = NSAttributedString(string: "\u{2669} = \(Int(tempo.rounded()))", attributes: [
+            .font: serif(size: 10.5, weight: .semibold),
+            .foregroundColor: ink,
         ])
-        label.draw(in: CGRect(x: 0, y: bottom + 4, width: size.width, height: 12))
+        // Clear of the treble staff's top line and anything on ledgers above it.
+        let staffTop = Staff(space: space, top: systemTop).trebleTop
+        marking.draw(at: CGPoint(x: x, y: staffTop - space * 4 - marking.size().height + space))
+    }
+
+    /// "Made with GoPiano" beside the app's icon, centred at the foot of every
+    /// page, and the page count at the right when there's more than one.
+    private static func drawFooter(page: Int, of count: Int, size: CGSize,
+                                   margin: CGFloat, in context: CGContext) {
+        let baseline = size.height - margin + 14
+        let label = NSAttributedString(string: "Made with GoPiano", attributes: [
+            .font: serif(size: 9, weight: .regular),
+            .foregroundColor: ink.withAlphaComponent(0.5),
+        ])
+        let labelSize = label.size()
+        let iconSide: CGFloat = 14
+        let gap: CGFloat = 5
+        let logo = UIImage(named: "Logo")
+        let total = (logo == nil ? 0 : iconSide + gap) + labelSize.width
+        var x = (size.width - total) / 2
+        if let logo {
+            // Rounded as the icon is on the Home Screen.
+            let rect = CGRect(x: x, y: baseline - iconSide / 2, width: iconSide, height: iconSide)
+            context.saveGState()
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: iconSide * 0.225,
+                                   cornerHeight: iconSide * 0.225, transform: nil))
+            context.clip()
+            logo.draw(in: rect)
+            context.restoreGState()
+            x += iconSide + gap
+        }
+        label.draw(at: CGPoint(x: x, y: baseline - labelSize.height / 2))
+
+        guard count > 1 else { return }
+        let number = NSAttributedString(string: "\(page) / \(count)", attributes: [
+            .font: serif(size: 9, weight: .regular),
+            .foregroundColor: ink.withAlphaComponent(0.45),
+        ])
+        let numberSize = number.size()
+        number.draw(at: CGPoint(x: size.width - margin - numberSize.width,
+                                y: baseline - numberSize.height / 2))
     }
 
     private static func serif(size: CGFloat, weight: UIFont.Weight) -> UIFont {
