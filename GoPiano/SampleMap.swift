@@ -5,7 +5,7 @@
 //  GENERATED - do not edit by hand. Run Tools/build-samplemap.py instead.
 //
 //  `frequency` is each sample's real measured pitch, not the textbook pitch of
-//  its root note. The samples were recorded slightly sharp and vary a little,
+//  its root note. The recordings run slightly sharp or flat and vary a little,
 //  and handing the sampler the true frequency is what lets it retune each one
 //  to concert pitch. See Tools/README.md.
 //
@@ -17,8 +17,10 @@ struct SampleMap {
         let file: String
     }
 
-    /// Sorted by root note, which `Conductor` relies on when it derives key ranges.
-    static let entries: [Entry] = [
+    // Each sorted by root note, which `Conductor` relies on when it derives
+    // key ranges.
+
+    static let piano: [Entry] = [
         Entry(root: 21, frequency: 27.7, file: "piano_021.wav"),
         Entry(root: 22, frequency: 29.33, file: "piano_022.wav"),
         Entry(root: 23, frequency: 31.1, file: "piano_023.wav"),
@@ -82,6 +84,69 @@ struct SampleMap {
         Entry(root: 82, frequency: 931.47, file: "piano_082.wav"),
         Entry(root: 83, frequency: 987.55, file: "piano_083.wav"),
         Entry(root: 84, frequency: 1044.75, file: "piano_084.wav"),
+    ]
+
+    static let electricPiano: [Entry] = [
+        Entry(root: 33, frequency: 55.13, file: "epiano_033.wav"),
+        Entry(root: 36, frequency: 65.69, file: "epiano_036.wav"),
+        Entry(root: 41, frequency: 87.62, file: "epiano_041.wav"),
+        Entry(root: 47, frequency: 124.0, file: "epiano_047.wav"),
+        Entry(root: 52, frequency: 165.24, file: "epiano_052.wav"),
+        Entry(root: 56, frequency: 208.95, file: "epiano_056.wav"),
+        Entry(root: 61, frequency: 277.26, file: "epiano_061.wav"),
+        Entry(root: 68, frequency: 415.1, file: "epiano_068.wav"),
+        Entry(root: 73, frequency: 553.69, file: "epiano_073.wav"),
+        Entry(root: 79, frequency: 786.69, file: "epiano_079.wav"),
+        Entry(root: 85, frequency: 1107.64, file: "epiano_085.wav"),
+        Entry(root: 92, frequency: 1664.86, file: "epiano_092.wav"),
+    ]
+
+    static let guitar: [Entry] = [
+        Entry(root: 40, frequency: 82.65, file: "guitar_040.wav"),
+        Entry(root: 41, frequency: 87.56, file: "guitar_041.wav"),
+        Entry(root: 42, frequency: 92.69, file: "guitar_042.wav"),
+        Entry(root: 43, frequency: 98.91, file: "guitar_043.wav"),
+        Entry(root: 44, frequency: 104.48, file: "guitar_044.wav"),
+        Entry(root: 45, frequency: 110.2, file: "guitar_045.wav"),
+        Entry(root: 46, frequency: 116.96, file: "guitar_046.wav"),
+        Entry(root: 47, frequency: 123.91, file: "guitar_047.wav"),
+        Entry(root: 48, frequency: 131.12, file: "guitar_048.wav"),
+        Entry(root: 49, frequency: 138.83, file: "guitar_049.wav"),
+        Entry(root: 50, frequency: 147.18, file: "guitar_050.wav"),
+        Entry(root: 51, frequency: 155.89, file: "guitar_051.wav"),
+        Entry(root: 52, frequency: 164.88, file: "guitar_052.wav"),
+        Entry(root: 53, frequency: 174.67, file: "guitar_053.wav"),
+        Entry(root: 54, frequency: 185.0, file: "guitar_054.wav"),
+        Entry(root: 55, frequency: 196.88, file: "guitar_055.wav"),
+        Entry(root: 56, frequency: 208.78, file: "guitar_056.wav"),
+        Entry(root: 57, frequency: 221.13, file: "guitar_057.wav"),
+        Entry(root: 58, frequency: 234.17, file: "guitar_058.wav"),
+        Entry(root: 59, frequency: 247.93, file: "guitar_059.wav"),
+        Entry(root: 60, frequency: 264.14, file: "guitar_060.wav"),
+        Entry(root: 61, frequency: 278.7, file: "guitar_061.wav"),
+        Entry(root: 62, frequency: 295.34, file: "guitar_062.wav"),
+        Entry(root: 63, frequency: 312.61, file: "guitar_063.wav"),
+        Entry(root: 64, frequency: 330.56, file: "guitar_064.wav"),
+        Entry(root: 65, frequency: 351.19, file: "guitar_065.wav"),
+        Entry(root: 66, frequency: 371.37, file: "guitar_066.wav"),
+        Entry(root: 67, frequency: 393.6, file: "guitar_067.wav"),
+        Entry(root: 68, frequency: 416.43, file: "guitar_068.wav"),
+        Entry(root: 69, frequency: 440.62, file: "guitar_069.wav"),
+        Entry(root: 70, frequency: 466.36, file: "guitar_070.wav"),
+        Entry(root: 71, frequency: 494.62, file: "guitar_071.wav"),
+        Entry(root: 72, frequency: 523.54, file: "guitar_072.wav"),
+        Entry(root: 73, frequency: 554.52, file: "guitar_073.wav"),
+        Entry(root: 74, frequency: 587.74, file: "guitar_074.wav"),
+        Entry(root: 75, frequency: 623.96, file: "guitar_075.wav"),
+        Entry(root: 76, frequency: 661.66, file: "guitar_076.wav"),
+        Entry(root: 77, frequency: 697.74, file: "guitar_077.wav"),
+        Entry(root: 78, frequency: 738.64, file: "guitar_078.wav"),
+        Entry(root: 79, frequency: 783.32, file: "guitar_079.wav"),
+        Entry(root: 80, frequency: 829.59, file: "guitar_080.wav"),
+        Entry(root: 81, frequency: 880.24, file: "guitar_081.wav"),
+        Entry(root: 82, frequency: 930.97, file: "guitar_082.wav"),
+        Entry(root: 83, frequency: 990.65, file: "guitar_083.wav"),
+        Entry(root: 84, frequency: 1043.25, file: "guitar_084.wav"),
     ]
 
     static let lowestSampledNote = 21

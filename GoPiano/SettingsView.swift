@@ -24,6 +24,8 @@ struct SettingsView: View {
     // changed. Ours are resampled, retuned and remapped, so they certainly are.
     private static let packURL = URL(string: "https://freesound.org/people/jobro/packs/2489/")!
     private static let licenceURL = URL(string: "https://creativecommons.org/licenses/by/3.0/")!
+    private static let ePianoURL = URL(string: "https://github.com/sfzinstruments/GregSullivan.E-Pianos")!
+    private static let guitarURL = URL(string: "https://github.com/facebookincubator/Meta-open-sound")!
 
     var body: some View {
         Form {
@@ -79,6 +81,16 @@ struct SettingsView: View {
                 // their own: the row was what pushed them off the bottom of
                 // the popover, taking the licence link with it.
                 Text("Piano samples: [Piano FF](\(Self.packURL)) by jobro on Freesound, used under [CC BY 3.0](\(Self.licenceURL)) and modified.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // The same licence as the piano, so the same credit: author,
+                // work, licence, and that it was changed.
+                Text("Electric piano samples: [Wurlitzer EP200](\(Self.ePianoURL)) by Greg Sullivan, used under [CC BY 3.0](\(Self.licenceURL)) and modified.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Guitar samples: [Meta Steel Guitar](\(Self.guitarURL)) from Meta Open Sound, public domain (CC0).")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -13,6 +13,50 @@ import CDunneAudioKit
 import DunneAudioKit
 import Observation
 
+/// The sounds GoPiano can play. Each is a set of samples in the app bundle,
+/// mapped across the keyboard the same way.
+enum Instrument: String, CaseIterable, Identifiable {
+    case piano
+    case electricPiano
+    case guitar
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .piano: "Piano"
+        case .electricPiano: "Electric Piano"
+        case .guitar: "Guitar"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .piano: "pianokeys"
+        case .electricPiano: "pianokeys.inverse"
+        case .guitar: "guitars"
+        }
+    }
+
+    var samples: [SampleMap.Entry] {
+        switch self {
+        case .piano: SampleMap.piano
+        case .electricPiano: SampleMap.electricPiano
+        case .guitar: SampleMap.guitar
+        }
+    }
+
+    /// How quickly a note stops once its key is let go: the piano's dampers,
+    /// an electric piano's softer ones, a finger lifting off a string.
+    var release: Float {
+        switch self {
+        case .piano: 0.45
+        case .electricPiano: 0.5
+        case .guitar: 0.3
+        }
+    }
+}
+
 @Observable
 final class Conductor {
 
@@ -165,36 +209,93 @@ final class Conductor {
 
     // MARK: - Lifecycle
 
+    /// Audio setup runs here rather than on the main thread. Activating the
+    /// session, starting the engine, reading every sample and the sampler's
+    /// slow first event together held the main thread for over a second at
+    /// launch - long enough on a device for touches to time out and the app to
+    /// look frozen. Only the results are handed back to the main thread.
+    private let audioQueue = DispatchQueue(label: "com.ecgriffin.GoPiano.audio", qos: .userInitiated)
+    @ObservationIgnored private var isStarting = false
+
+    static let instrumentKey = "instrument"
+
+    /// What the keys play. Kept across launches.
+    private(set) var instrument = Instrument(rawValue: UserDefaults.standard.string(forKey: Conductor.instrumentKey) ?? "")
+        ?? .piano
+
+    /// Swaps the samples the keys play. Done on the audio queue, like loading
+    /// at launch, so the keys stay responsive while a new set is read.
+    func setInstrument(_ choice: Instrument) {
+        guard choice != instrument else { return }
+        instrument = choice
+        UserDefaults.standard.set(choice.rawValue, forKey: Self.instrumentKey)
+        guard isInstrumentLoaded else { return }
+        allNotesOff()
+        let pedal = isSustaining
+        audioQueue.async { [self] in
+            do {
+                applySamplerParameters(for: choice)
+                let samples = try loadInstrument(choice)
+                sampler.sustainPedal(pedalDown: pedal)
+                DispatchQueue.main.async { [self] in
+                    // A quicker second choice may have landed first.
+                    if instrument == choice { loadedSamples = samples }
+                }
+            } catch {
+                Log("Could not load \(choice.name): \(error)")
+            }
+        }
+    }
+
     func start() {
-        guard !isInstrumentLoaded, startupError == nil else { return }
-        do {
-            removeOrphanedTakes()
-            try configureSession()
-            // The engine must be running before the instrument is handed over:
-            // the sampler's DSP only learns the real hardware sample rate when
-            // it is started, and `update(data:)` re-inits the core sampler with
-            // whatever rate it knows at that moment. Load first and every note
-            // plays sharp by the ratio between 44100 and the actual rate.
-            try engine.start()
-            // Effect parameters are only writable once the engine has
-            // instantiated the underlying audio units.
-            reverb.loadFactoryPreset(.mediumRoom)
-            reverb.dryWetMix = AUValue(reverbMix)
-            hall.loadFactoryPreset(.largeHall)
-            hall.dryWetMix = 1
+        guard !isInstrumentLoaded, !isStarting, startupError == nil else { return }
+        isStarting = true
+        let mix = reverbMix
+        let choice = instrument
+        audioQueue.async { [self] in
+            let outcome: Result<(samples: SamplerData, recorder: NodeRecorder,
+                                 clicks: (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)?), Error>
+            do {
+                removeOrphanedTakes()
+                try configureSession()
+                // The engine must be running before the instrument is handed
+                // over: the sampler's DSP only learns the real hardware sample
+                // rate when it is started, and `update(data:)` re-inits the core
+                // sampler with whatever rate it knows at that moment. Load first
+                // and every note plays sharp by the ratio between 44100 and the
+                // actual rate.
+                try engine.start()
+                // Effect parameters are only writable once the engine has
+                // instantiated the underlying audio units.
+                reverb.loadFactoryPreset(.mediumRoom)
+                reverb.dryWetMix = AUValue(mix)
+                hall.loadFactoryPreset(.largeHall)
+                hall.dryWetMix = 1
 
-            // Set before the samples are handed over: swapping in new sampler
-            // data copies the envelope settings across from the current one,
-            // and the parameters reject writes made straight after the swap.
-            applySamplerParameters()
-
-            loadInstrument()
-            makeClickSounds()
-            recorder = try NodeRecorder(node: instrumentOut)
-            observeAudioSession()
-        } catch {
-            startupError = error.localizedDescription
-            Log("Audio start failed: \(error)")
+                // Set before the samples are handed over: swapping in new
+                // sampler data copies the envelope settings across from the
+                // current one, and the parameters reject writes made straight
+                // after the swap.
+                applySamplerParameters(for: choice)
+                let samples = try loadInstrument(choice)
+                outcome = .success((samples, try NodeRecorder(node: instrumentOut), makeClickSounds()))
+            } catch {
+                outcome = .failure(error)
+            }
+            DispatchQueue.main.async { [self] in
+                isStarting = false
+                switch outcome {
+                case .success(let ready):
+                    loadedSamples = ready.samples
+                    recorder = ready.recorder
+                    clickSounds = ready.clicks
+                    isInstrumentLoaded = true
+                    observeAudioSession()
+                case .failure(let error):
+                    startupError = error.localizedDescription
+                    Log("Audio start failed: \(error)")
+                }
+            }
         }
     }
 
@@ -261,32 +362,41 @@ final class Conductor {
     func resumeAudio() {
         guard isInstrumentLoaded else { return }
         guard !engine.avEngine.isRunning else { return }
-        do {
-            try configureSession()
-            try engine.start()
-            if let loadedSamples {
-                // Same ordering as at startup, and for the same reason: the
-                // swap copies these across from the current sampler and
-                // rejects writes made straight after it.
-                applySamplerParameters()
-                sampler.update(data: loadedSamples)
+        let samples = loadedSamples
+        let pedal = isSustaining
+        let choice = instrument
+        // Off the main thread for the same reason as starting up. Several
+        // notifications can arrive together, so whichever runs first restarts
+        // the engine and the rest find it running.
+        audioQueue.async { [self] in
+            guard !engine.avEngine.isRunning else { return }
+            do {
+                try configureSession()
+                try engine.start()
+                if let samples {
+                    // Same ordering as at startup, and for the same reason: the
+                    // swap copies these across from the current sampler and
+                    // rejects writes made straight after it.
+                    applySamplerParameters(for: choice)
+                    sampler.update(data: samples)
+                }
+                // The sampler comes back with the pedal up, while the control
+                // went on showing it down - so sustain looked on, did nothing,
+                // and had to be pressed twice to come back.
+                sampler.sustainPedal(pedalDown: pedal)
+            } catch {
+                Log("Could not resume audio: \(error)")
             }
-            // The sampler comes back with the pedal up, while the control went
-            // on showing it down - so sustain looked on, did nothing, and had
-            // to be pressed twice to come back.
-            sampler.sustainPedal(pedalDown: isSustaining)
-        } catch {
-            Log("Could not resume audio: \(error)")
         }
     }
 
     /// Volume and envelope for the sampler. Always set *before* sampler data
     /// is swapped in, never after: the swap copies these across from the
     /// current sampler, and writes made straight afterwards are rejected.
-    private func applySamplerParameters() {
+    private func applySamplerParameters(for instrument: Instrument) {
         sampler.masterVolume = 0.9
         // The dampers: a key let go without the pedal stops soon after.
-        sampler.releaseDuration = 0.45
+        sampler.releaseDuration = instrument.release
     }
 
     private func configureSession() throws {
@@ -306,8 +416,10 @@ final class Conductor {
         #endif
     }
 
-    private func loadInstrument() {
-        let entries = SampleMap.entries
+    /// Reads the samples and hands them to the sampler, returning them so
+    /// they can be handed over again after an interruption.
+    private func loadInstrument(_ instrument: Instrument) throws -> SamplerData {
+        let entries = instrument.samples
         var descriptors: [SamplerData.FileWithSampleDescriptor] = []
 
         for (index, entry) in entries.enumerated() {
@@ -346,15 +458,11 @@ final class Conductor {
             descriptors.append((sampleDescriptor: descriptor, file: file))
         }
 
-        guard !descriptors.isEmpty else {
-            startupError = "No piano samples found in the app bundle."
-            return
-        }
+        guard !descriptors.isEmpty else { throw InstrumentError.noSamples }
 
         // buildKeyMap() works through the underlying C sampler, not the struct.
         let data = SamplerData(filesWithSampleDescriptors: descriptors)
         data.buildKeyMap()
-        loadedSamples = data
         sampler.update(data: data)
 
         // The first MIDI event through the sampler costs the best part of a
@@ -366,8 +474,12 @@ final class Conductor {
         // Deliberately not `silence()`: that calls stopAllVoices(), which sets
         // a flag only restartVoices() clears, leaving the sampler mute for good.
         sampler.stop(noteNumber: 60)
+        return data
+    }
 
-        isInstrumentLoaded = true
+    enum InstrumentError: LocalizedError {
+        case noSamples
+        var errorDescription: String? { "No instrument samples found in the app bundle." }
     }
 
     // MARK: - Playing
@@ -731,7 +843,7 @@ final class Conductor {
 
     /// Two short, bright ticks - higher for the first beat of the bar - made in
     /// whatever format the graph gave the click, which a player has to match.
-    private func makeClickSounds() {
+    private func makeClickSounds() -> (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)? {
         let format = click.player.outputFormat(forBus: 0)
         func tick(pitch: Double, level: Float) -> AVAudioPCMBuffer? {
             let rate = format.sampleRate
@@ -747,9 +859,10 @@ final class Conductor {
             }
             return buffer
         }
-        if let accent = tick(pitch: 2000, level: 0.55), let beat = tick(pitch: 1500, level: 0.35) {
-            clickSounds = (accent, beat)
+        guard let accent = tick(pitch: 2000, level: 0.55), let beat = tick(pitch: 1500, level: 0.35) else {
+            return nil
         }
+        return (accent, beat)
     }
 
     private func startClicks(at origin: TimeInterval, interval: TimeInterval, beatsPerBar: Int) {

@@ -27,3 +27,27 @@ covering MIDI 48-60. Keys 85-88 were excluded: their pitch could not be measured
 reliably, since at the 11 kHz source rate those notes sit near the Nyquist limit.
 
 Note MIDI 80 has no sample of its own and is pitched from its neighbours.
+
+## Electric piano and guitar
+
+`electric-piano.csv` and `guitar.csv` are written by `build-instruments.py`,
+which builds both sets from their source packs:
+
+    ./Tools/build-instruments.py "<…>/Wurlitzer EP200" "<…>/meta-steel-guitar"
+
+- **Electric piano:** the Wurlitzer EP200 from Greg Sullivan's E-Pianos
+  (github.com/sfzinstruments/GregSullivan.E-Pianos), CC BY 3.0. The forte layer
+  only: twelve samples, a root every five or six semitones from A1 to G#6.
+- **Guitar:** the steel-string acoustic from Meta Open Sound
+  (github.com/facebookincubator/Meta-open-sound, the OGG release), CC0. One
+  sample per semitone from E2 to C6, each on the string the pack's own map
+  plays it on in first position, middle velocity layer.
+
+Each sample is converted to 22.05 kHz mono, trimmed to the start of the note,
+cut to 4 s (electric piano) or 3.5 s (guitar) with a fade, and scaled so the
+set's typical loudness matches the piano's. Its pitch is measured over the
+sustain and that frequency declared, as for the piano, so the sampler retunes it
+to concert pitch. The Wurlitzer measured within 4 cents of its map's own tuning;
+the guitar runs a few cents sharp, as strings do.
+
+The source packs aren't kept in the repository; download them again to rebuild.
