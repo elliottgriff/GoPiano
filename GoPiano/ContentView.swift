@@ -143,6 +143,7 @@ struct ContentView: View {
             // Left flexible, the groups competed with the spacers for room
             // and SwiftUI squeezed the text out of the Save button to make it.
             pedal.fixedSize()
+            instrumentButton.fixedSize()
             octaveStepper.fixedSize()
             Spacer(minLength: 6)
             transport.fixedSize()
@@ -213,6 +214,42 @@ struct ContentView: View {
             .overlay(alignment: .top) {
                 Rectangle().fill(finish.bezelLine).frame(height: 1)
             }
+    }
+
+    // MARK: Instrument
+
+    /// Beside the pedal, so the sound can change mid-play. On a phone, where
+    /// the bar has no room to spare, it's an icon; an iPad has room for the
+    /// name as well.
+    private var instrumentButton: some View {
+        let current = conductor.instrument
+        return Menu {
+            Picker("Instrument", selection: Binding(get: { conductor.instrument },
+                                                    set: { conductor.setInstrument($0) })) {
+                ForEach(Instrument.allCases) { instrument in
+                    Label(instrument.name, systemImage: instrument.symbol).tag(instrument)
+                }
+            }
+        } label: {
+            PanelKey(shape: Capsule(), colors: nil, pressed: false) {
+                HStack(spacing: 6) {
+                    Image(systemName: current.symbol)
+                        .font(.system(size: unit * 0.38, weight: .semibold))
+                    if isPad {
+                        Text(current.name)
+                            .font(.system(size: unit * 0.36, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                }
+                .foregroundStyle(finish.panelText)
+                .padding(.horizontal, isPad ? 14 : 0)
+                .frame(minWidth: unit, minHeight: unit)
+            }
+        }
+        .disabled(!conductor.isInstrumentLoaded)
+        .opacity(conductor.isInstrumentLoaded ? 1 : 0.4)
+        .accessibilityLabel("Instrument")
+        .accessibilityValue(current.name)
     }
 
     // MARK: Pedal

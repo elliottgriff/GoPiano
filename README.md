@@ -206,10 +206,19 @@ VoiceOver gets a row of buttons standing in for the drawn keys, one per note.
 
 ## Sound
 
-The piano is multi-sampled across MIDI 21-84 (A0 to C6) and pitched from the
-nearest sample outside that. Tuning was calibrated against captured output;
-across the sampled range the played pitch lands within a few cents of equal
-temperament. `Tools/README.md` covers where the samples came from.
+Three instruments, switched from the button beside the Pedal:
+
+- **Piano**, multi-sampled across MIDI 21-84 (A0 to C6) and pitched from the
+  nearest sample outside that. Tuning was calibrated against captured output;
+  across the sampled range the played pitch lands within a few cents of equal
+  temperament.
+- **Electric Piano**, a Wurlitzer EP200, sampled every five or six semitones.
+- **Guitar**, a steel-string acoustic sampled on every semitone from E2 to C6.
+
+Every set is retuned from its samples' measured pitch and matched to the
+piano's loudness. Switching loads the new set off the main thread, as the
+first load at launch does, so the keys never stall. `Tools/README.md` covers
+where the samples came from and how they were prepared.
 
 ## Credits
 
@@ -219,4 +228,14 @@ pack by **jobro** on Freesound, used under
 modified: resampled, retuned to concert pitch and remapped across the keyboard.
 See `Tools/README.md` for how.
 
-The licence requires this credit, so it also appears in the app, under Settings.
+Electric piano samples are the **Wurlitzer EP200** from
+[Greg Sullivan's E-Pianos](https://github.com/sfzinstruments/GregSullivan.E-Pianos),
+used under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) and modified
+the same way.
+
+Guitar samples are the **Meta Steel Guitar** from
+[Meta Open Sound](https://github.com/facebookincubator/Meta-open-sound), public
+domain under CC0.
+
+The licences require the first two credits, so all three also appear in the
+app, under Settings.
