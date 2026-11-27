@@ -599,12 +599,9 @@ enum SheetMusicPDF {
                     drawPaper(size: paper, in: context)
                     var y = margin
                     if page == 1 {
-                        y = drawHeader(name,
-                                       subtitle: "\(subtitle) \u{00B7} \(lengthText(for: score, length: length))",
-                                       width: paper.width, top: y)
-                        if let tempo = score.tempo {
-                            drawTempo(tempo, x: margin, systemTop: y, space: space)
-                        }
+                        y = drawHeader(name, subtitle: subtitle,
+                                       details: details(for: score, length: length),
+                                       width: paper.width, top: y, in: context)
                     }
                     while index < systemCount, y + systemHeight <= musicBottom {
                         context.saveGState()
@@ -626,7 +623,7 @@ enum SheetMusicPDF {
     // MARK: - The page
 
     /// Room the first page's header takes above the music.
-    private static let headerHeight: CGFloat = 72
+    private static let headerHeight: CGFloat = 110
 
     private static func pages(systems: Int, systemHeight: CGFloat,
                               firstTop: CGFloat, top: CGFloat, bottom: CGFloat) -> Int {
@@ -646,16 +643,29 @@ enum SheetMusicPDF {
         context.fill(CGRect(origin: .zero, size: size))
     }
 
-    /// How long the piece runs, in whole seconds as the library counts them.
-    private static func lengthText(for score: MelodyScore, length: TimeInterval?) -> String {
-        let length = length ?? max(score.duration, score.spans.map(\.end).max() ?? 0)
-        let seconds = Int(length.rounded())
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    /// The tempo, metre and length, where the piece has them.
+    private static func details(for score: MelodyScore,
+                                length: TimeInterval?) -> [(label: String, value: String)] {
+        var details: [(label: String, value: String)] = []
+        if let tempo = score.tempo {
+            details.append(("Tempo", "\u{2669} = \(Int(tempo.rounded()))"))
+        }
+        if let signature = score.timeSignature {
+            details.append(("Time", "\(signature.beats)/\(signature.unit)"))
+        }
+        // Whole seconds, as the library counts them.
+        let seconds = Int((length ?? max(score.duration, score.spans.map(\.end).max() ?? 0)).rounded())
+        details.append(("Length", String(format: "%d:%02d", seconds / 60, seconds % 60)))
+        return details
     }
 
-    /// The song's title and the line saying when and how long.
+    /// The song's title, when it was played, and a row of its details set in
+    /// the page's own type: a small spaced label over each value, the columns
+    /// parted by hairlines, as a printed programme would have them.
     private static func drawHeader(_ name: String, subtitle: String,
-                                   width: CGFloat, top: CGFloat) -> CGFloat {
+                                   details: [(label: String, value: String)],
+                                   width: CGFloat, top: CGFloat,
+                                   in context: CGContext) -> CGFloat {
         let centred = NSMutableParagraphStyle()
         centred.alignment = .center
         centred.lineBreakMode = .byTruncatingTail
@@ -665,28 +675,48 @@ enum SheetMusicPDF {
             .foregroundColor: ink,
             .paragraphStyle: centred,
         ])
-        let titleTop = top
         let titleHeight = title.size().height
-        title.draw(in: CGRect(x: 40, y: titleTop, width: width - 80, height: titleHeight))
+        title.draw(in: CGRect(x: 40, y: top, width: width - 80, height: titleHeight))
 
         let detail = NSAttributedString(string: subtitle, attributes: [
             .font: serif(size: 10, weight: .regular),
             .foregroundColor: ink.withAlphaComponent(0.55),
             .paragraphStyle: centred,
         ])
-        detail.draw(in: CGRect(x: 0, y: titleTop + titleHeight + 3, width: width, height: 14))
-        return top + headerHeight
-    }
+        detail.draw(in: CGRect(x: 0, y: top + titleHeight + 3, width: width, height: 14))
 
-    /// The tempo marking, over the start of the first line as a score has it.
-    private static func drawTempo(_ tempo: Double, x: CGFloat, systemTop: CGFloat, space: CGFloat) {
-        let marking = NSAttributedString(string: "\u{2669} = \(Int(tempo.rounded()))", attributes: [
-            .font: serif(size: 10.5, weight: .semibold),
-            .foregroundColor: ink,
-        ])
-        // Clear of the treble staff's top line and anything on ledgers above it.
-        let staffTop = Staff(space: space, top: systemTop).trebleTop
-        marking.draw(at: CGPoint(x: x, y: staffTop - space * 4 - marking.size().height + space))
+        let labels = details.map {
+            NSAttributedString(string: $0.label.uppercased(), attributes: [
+                .font: serif(size: 7, weight: .medium),
+                .foregroundColor: ink.withAlphaComponent(0.5),
+                .kern: 1.2,
+            ])
+        }
+        let values = details.map {
+            NSAttributedString(string: $0.value, attributes: [
+                .font: serif(size: 12, weight: .regular),
+                .foregroundColor: ink,
+            ])
+        }
+        let padding: CGFloat = 20
+        let columns = zip(labels, values).map { max($0.size().width, $1.size().width) + padding * 2 }
+        let rowTop = top + titleHeight + 30
+        let rowHeight: CGFloat = 28
+        var x = (width - columns.reduce(0, +)) / 2
+        context.setStrokeColor(ink.withAlphaComponent(0.25).cgColor)
+        context.setLineWidth(0.5)
+        for (index, column) in columns.enumerated() {
+            if index > 0 {
+                context.move(to: CGPoint(x: x, y: rowTop + 2))
+                context.addLine(to: CGPoint(x: x, y: rowTop + rowHeight - 2))
+                context.strokePath()
+            }
+            let label = labels[index], value = values[index]
+            label.draw(at: CGPoint(x: x + (column - label.size().width) / 2, y: rowTop))
+            value.draw(at: CGPoint(x: x + (column - value.size().width) / 2, y: rowTop + 11))
+            x += column
+        }
+        return top + headerHeight
     }
 
     /// "Made with GoPiano" beside the app's icon, centred at the foot of every
