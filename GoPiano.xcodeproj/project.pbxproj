@@ -26,6 +26,9 @@
 		A10000000000000000000034 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000033 /* SettingsView.swift */; };
 		A10000000000000000000038 /* MIDIFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* MIDIFile.swift */; };
 		A1000000000000000000003A /* MIDIImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* MIDIImport.swift */; };
+		A1000000000000000000003C /* ScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003B /* ScoreView.swift */; };
+		A1000000000000000000003E /* SheetMusic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003D /* SheetMusic.swift */; };
+		A10000000000000000000040 /* MeteredMusic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003F /* MeteredMusic.swift */; };
 		A10000000000000000000036 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -48,6 +51,9 @@
 		A10000000000000000000033 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A10000000000000000000037 /* MIDIFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIFile.swift; sourceTree = "<group>"; };
 		A10000000000000000000039 /* MIDIImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIImport.swift; sourceTree = "<group>"; };
+		A1000000000000000000003B /* ScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreView.swift; sourceTree = "<group>"; };
+		A1000000000000000000003D /* SheetMusic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetMusic.swift; sourceTree = "<group>"; };
+		A1000000000000000000003F /* MeteredMusic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeteredMusic.swift; sourceTree = "<group>"; };
 		A10000000000000000000035 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -91,6 +97,9 @@
 				A10000000000000000000031 /* MelodyVideoExporter.swift */,
 				A10000000000000000000037 /* MIDIFile.swift */,
 				A10000000000000000000039 /* MIDIImport.swift */,
+				A1000000000000000000003B /* ScoreView.swift */,
+				A1000000000000000000003D /* SheetMusic.swift */,
+				A1000000000000000000003F /* MeteredMusic.swift */,
 				A10000000000000000000013 /* Assets.xcassets */,
 				A10000000000000000000035 /* PrivacyInfo.xcprivacy */,
 				A10000000000000000000014 /* Samples */,
@@ -207,6 +216,9 @@
 				A10000000000000000000032 /* MelodyVideoExporter.swift in Sources */,
 				A10000000000000000000038 /* MIDIFile.swift in Sources */,
 				A1000000000000000000003A /* MIDIImport.swift in Sources */,
+				A1000000000000000000003C /* ScoreView.swift in Sources */,
+				A1000000000000000000003E /* SheetMusic.swift in Sources */,
+				A10000000000000000000040 /* MeteredMusic.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

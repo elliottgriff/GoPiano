@@ -20,11 +20,21 @@ struct NoteSpan: Codable, Hashable {
     /// every note to the same weight.
     var velocity: UInt8
 
-    init(note: UInt8, start: TimeInterval, end: TimeInterval, velocity: UInt8 = 100) {
+    /// Where the note falls and how long it lasts, in quarter-note beats -
+    /// known only for music that came with a beat, such as an imported MIDI
+    /// file. It is what lets sheet music write a note's value rather than
+    /// guess it from seconds. Nil for anything played freely.
+    var beat: Double?
+    var beats: Double?
+
+    init(note: UInt8, start: TimeInterval, end: TimeInterval, velocity: UInt8 = 100,
+         beat: Double? = nil, beats: Double? = nil) {
         self.note = note
         self.start = start
         self.end = end
         self.velocity = velocity
+        self.beat = beat
+        self.beats = beats
     }
 
     func contains(_ time: TimeInterval) -> Bool {
@@ -32,7 +42,7 @@ struct NoteSpan: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case note, start, end, velocity
+        case note, start, end, velocity, beat, beats
     }
 
     /// Melodies recorded before velocity was captured have no such key, and
@@ -43,12 +53,29 @@ struct NoteSpan: Codable, Hashable {
         start = try container.decode(TimeInterval.self, forKey: .start)
         end = try container.decode(TimeInterval.self, forKey: .end)
         velocity = try container.decodeIfPresent(UInt8.self, forKey: .velocity) ?? 100
+        beat = try container.decodeIfPresent(Double.self, forKey: .beat)
+        beats = try container.decodeIfPresent(Double.self, forKey: .beats)
     }
+}
+
+/// How many beats make a bar, and what kind of note gets one: 4/4, 3/4, 6/8.
+struct TimeSignature: Codable, Hashable {
+    let beats: Int
+    let unit: Int
+
+    static let common = TimeSignature(beats: 4, unit: 4)
+
+    /// A bar's length in quarter notes - the unit every beat here is counted in.
+    var barLength: Double { Double(beats) * 4 / Double(unit) }
 }
 
 struct MelodyScore: Codable, Hashable {
     var spans: [NoteSpan] = []
     var duration: TimeInterval = 0
+    /// Set only for music that came with a beat. With it, sheet music can be
+    /// written in bars with real note values; without it, notes are written
+    /// in the order they were played.
+    var timeSignature: TimeSignature?
 
     var isEmpty: Bool { spans.isEmpty }
 

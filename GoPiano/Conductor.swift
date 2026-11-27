@@ -86,6 +86,16 @@ final class Conductor {
     private var takeScore = MelodyScore()
     private var replayTimer: Timer?
 
+    /// The song as sheet music, shown above the keys: every note written down
+    /// in the order it was played, notes struck together stacked into chords.
+    /// It is the music of whatever is loaded - the take just recorded, a saved
+    /// melody, an import - or, with nothing loaded, of whatever is played.
+    private(set) var page: SheetPage = .written([])
+    /// Whether playing writes onto the page. True with nothing loaded and
+    /// while recording; false while the page shows a finished take or a
+    /// melody, so playing along with it doesn't scribble over it.
+    private(set) var pageIsLive = true
+
     // Sequencer state - see "Performing a melody" below.
     private var sequence: [SequencedEvent] = []
     private var sequenceIndex = 0
@@ -337,6 +347,7 @@ final class Conductor {
         let at = now - recordingStart
         activeNotes.insert(note)
         sampler.play(noteNumber: note, velocity: velocity)
+        if pageIsLive { write(note, at: at) }
         if isRecording { scoreRecorder.noteOn(note, velocity: velocity, at: at) }
     }
 
@@ -346,6 +357,15 @@ final class Conductor {
         activeNotes.remove(note)
         sampler.stop(noteNumber: note)
         if isRecording { scoreRecorder.noteOff(note, at: at) }
+    }
+
+    /// Writes a played note onto the page. A very long session keeps its most
+    /// recent stretch rather than growing without end.
+    private func write(_ note: UInt8, at time: TimeInterval) {
+        guard case .written(var chords) = page else { return }
+        SheetMusic.add(note, at: time, to: &chords)
+        if chords.count > 5000 { chords.removeFirst(1000) }
+        page = .written(chords)
     }
 
     func setReverbMix(_ value: Float) {
@@ -405,6 +425,9 @@ final class Conductor {
             recordingStart = now
             finishedTakeDuration = 0
             hasUnsavedTake = false
+            // A new take starts a new page.
+            page = .written([])
+            pageIsLive = true
             currentScore = MelodyScore()
             transport = .recording
         } catch {
@@ -420,6 +443,10 @@ final class Conductor {
         finishedTakeDuration = elapsed
         currentScore = scoreRecorder.finish(at: elapsed)
         takeScore = currentScore
+        // The page now is the take, timed from its start so a replay can
+        // follow along on it.
+        page = SheetPage(score: currentScore)
+        pageIsLive = false
         if let file = recorder.audioFile, file.length > 0 {
             try? player.load(file: file)
             hasRecording = true
@@ -472,6 +499,8 @@ final class Conductor {
         hasRecording = true
         hasSequence = false
         finishedTakeDuration = recording.duration
+        page = SheetPage(score: currentScore)
+        pageIsLive = false
         transport = .idle
     }
 
@@ -486,6 +515,8 @@ final class Conductor {
         sequence = Self.events(for: score)
         hasRecording = false
         hasSequence = !score.isEmpty
+        page = SheetPage(score: score)
+        pageIsLive = false
         finishedTakeDuration = score.duration
         transport = .idle
     }
@@ -498,6 +529,8 @@ final class Conductor {
         hasUnsavedTake = false
         takeScore = MelodyScore()
         sequence = []
+        page = .written([])
+        pageIsLive = true
         allNotesOff()
         setSustain(false)
         discardTakeFile()

@@ -76,9 +76,13 @@ struct MelodyVideoExporter {
         writer.startSession(atSourceTime: .zero)
 
         let framing = score.framing()
+        // Longer keys than on screen: a frame has no score above the keys to
+        // fill the height, so holding real proportions would leave a band of
+        // empty case across the top of a several-octave melody.
         let layout = PianoLayout(firstOctave: framing.firstOctave,
                                  octaveCount: framing.octaveCount,
-                                 size: size)
+                                 size: size,
+                                 maxKeyRatio: 11)
         let total = max(score.duration, audioDuration) + tailOut
         let frameCount = max(1, Int((total + leadIn) * Double(framesPerSecond)))
 
@@ -112,7 +116,6 @@ struct MelodyVideoExporter {
                 KeyboardRenderer.draw(layout: layout,
                                       pressed: pressed,
                                       showsLabels: true,
-                                      fillsBackground: true,
                                       in: context)
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])

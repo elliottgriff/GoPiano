@@ -60,6 +60,9 @@ struct RecordingsView: View {
                 }
             }
         }
+        // Dark, like the instrument it slides up over. A bright standard sheet
+        // made it look like a second app.
+        .preferredColorScheme(.dark)
         .onAppear(perform: reload)
         .onDisappear { if !handedOff { conductor.stopPlayback() } }
         .fileImporter(isPresented: $isImporting,
@@ -175,6 +178,15 @@ struct RecordingsView: View {
                 exportMIDI(recording)
             } label: {
                 actionLabel("MIDI", systemImage: "pianokeys", showingLabels: showingLabels)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!hasScore(recording))
+
+            Button {
+                exportSheetMusic(recording)
+            } label: {
+                actionLabel("Sheet Music", systemImage: "music.quarternote.3",
+                            showingLabels: showingLabels)
             }
             .buttonStyle(.bordered)
             .disabled(!hasScore(recording))
@@ -302,6 +314,25 @@ struct RecordingsView: View {
         }
     }
 
+    /// The melody written out as sheet music, the way the page above the keys
+    /// showed it, as a PDF to print or send.
+    private func exportSheetMusic(_ recording: Recording) {
+        guard let score = RecordingStore.shared.score(for: recording), !score.isEmpty else {
+            errorMessage = SheetMusicError.noNotes.localizedDescription
+            return
+        }
+        conductor.stopPlayback()
+        do {
+            let played = recording.created.formatted(date: .long, time: .omitted)
+            exported = ExportedFile(url: try SheetMusicPDF.write(score,
+                                                                 named: recording.name,
+                                                                 subtitle: "Played on GoPiano · \(played)"),
+                                    kind: .sheetMusic)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func delete(at offsets: IndexSet) {
         let going = offsets.map { recordings[$0] }
         if going.contains(where: { $0 == selection }) { conductor.stopPlayback() }
@@ -358,6 +389,7 @@ struct ExportedFile: Identifiable {
     enum Kind {
         case video
         case midi
+        case sheetMusic
     }
 
     let url: URL
@@ -368,7 +400,7 @@ struct ExportedFile: Identifiable {
 
 /// Lets a freshly made export be shared without first saving it anywhere the
 /// user has to manage.
-private struct ExportShareSheet: View {
+struct ExportShareSheet: View {
     let file: ExportedFile
     @Environment(\.dismiss) private var dismiss
 
@@ -402,6 +434,7 @@ private struct ExportShareSheet: View {
         switch file.kind {
         case .video: "Video"
         case .midi: "MIDI"
+        case .sheetMusic: "Sheet Music"
         }
     }
 
@@ -409,6 +442,7 @@ private struct ExportShareSheet: View {
         switch file.kind {
         case .video: "film"
         case .midi: "pianokeys"
+        case .sheetMusic: "music.quarternote.3"
         }
     }
 
@@ -418,6 +452,8 @@ private struct ExportShareSheet: View {
             "Your melody is ready to share."
         case .midi:
             "Your melody as editable notes. Open it in a DAW, or send it to yourself to work on later."
+        case .sheetMusic:
+            "Your melody written out as sheet music, ready to print or send."
         }
     }
 }

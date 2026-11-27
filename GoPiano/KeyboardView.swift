@@ -31,6 +31,10 @@ struct KeyboardCanvas: View {
 /// The playable keyboard: the same drawing, plus touch handling.
 struct KeyboardView: View {
     @Environment(Conductor.self) private var conductor
+    /// Off plays every note at one strength. Loudness from where the key is
+    /// touched fights ordinary technique - black-key passages put the hand
+    /// further up the keys, so the white keys between come out quieter.
+    @AppStorage("touchDynamics") private var touchDynamics = true
 
     let firstOctave: Int
     let octaveCount: Int
@@ -70,7 +74,7 @@ struct KeyboardView: View {
         var velocities: [UInt8: UInt8] = [:]
         for point in points {
             guard let key = layout.key(at: point) else { continue }
-            velocities[key.note] = PianoLayout.velocity(for: point, on: key)
+            velocities[key.note] = touchDynamics ? PianoLayout.velocity(for: point, on: key) : 100
         }
         let notes = Set(velocities.keys)
 

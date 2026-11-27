@@ -12,6 +12,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(Conductor.self) private var conductor
     @Binding var showsLabels: Bool
+    @AppStorage("touchDynamics") private var touchDynamics = true
 
     // The samples are CC BY 3.0, which is not attribution-optional: it wants
     // the author, the work, a link to the licence, and a note that the work was
@@ -25,6 +26,13 @@ struct SettingsView: View {
                 // "Note Names" and "Reverb" say what they do; a caption under
                 // each only costs height the popover does not have.
                 Toggle("Note Names", isOn: $showsLabels)
+
+                // This one does need its line: "Touch Dynamics" alone doesn't
+                // say what the touch is measured by.
+                Toggle(isOn: $touchDynamics) {
+                    Text("Touch Dynamics")
+                    Text("Louder at the front of the key")
+                }
 
                 HStack {
                     Text("Reverb")
@@ -48,6 +56,10 @@ struct SettingsView: View {
         // Sized to hold every section at once. An iPhone in landscape is only
         // ~400pt tall, so this has to stay well under that, which is why the
         // contents above are kept short rather than the box made taller.
-        .frame(idealWidth: 340, idealHeight: 300)
+        // Wide enough that the dynamics line stays on one line: on two, it
+        // pushed the end of the licence credit below the popover's edge.
+        .frame(idealWidth: 370, idealHeight: 340)
+        // Dark like the instrument it sits over, not a bright card on top.
+        .preferredColorScheme(.dark)
     }
 }

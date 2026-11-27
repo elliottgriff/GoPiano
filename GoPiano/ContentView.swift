@@ -30,6 +30,9 @@ struct ContentView: View {
     @State private var imported: (score: MelodyScore, name: String)?
     @State private var isConfirmingReset = false
     @State private var isExplainingImportSave = false
+    /// The name of the imported song on the keyboard, for its sheet music.
+    @State private var importName = "Imported Song"
+    @State private var sharedFile: ExportedFile?
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -41,27 +44,26 @@ struct ContentView: View {
     }
 
     /// How many octaves the screen can show while the white keys stay wide
-    /// enough to play comfortably. A phone fits two, an iPad three. Four fits
-    /// on a 13-inch iPad but the keys end up too thin to hit.
+    /// enough to hit: a phone fits two, an iPad three. The keys keep real
+    /// proportions whatever the count, and on an iPad the height that leaves
+    /// above them goes to the score.
     private var maxOctaves: Int {
         let minimumWhiteKey: CGFloat = 48
-        let fits = Int(screenWidth / (7 * minimumWhiteKey))
-        return min(3, max(1, fits))
+        let whiteKeys = Int(screenSize.width / minimumWhiteKey)
+        // Every keyboard ends on a trailing C, so octaves are counted after it.
+        return min(3, max(1, (whiteKeys - 1) / 7))
     }
 
-    private var screenWidth: CGFloat {
+    private var screenSize: CGSize {
         UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow?.bounds.width }
-            .max() ?? 0
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow?.bounds.size }
+            .max { $0.width < $1.width } ?? .zero
     }
 
     var body: some View {
         VStack(spacing: 0) {
             controlBar
-            KeyboardView(firstOctave: firstOctave,
-                         octaveCount: octaveCount,
-                         showsLabels: showsLabels)
-                .background(Self.bezelColor)
+            keyboardArea
             // A bezel along the front edge, where a real keyboard has one. It
             // also keeps the keys out of the home indicator, so the swipe that
             // leaves the app doesn't sound a note on the way out.
@@ -88,9 +90,12 @@ struct ContentView: View {
             Text("It hasn't been saved, so it can't be got back.")
         }
         .alert("Imported Songs Can't Be Saved Yet", isPresented: $isExplainingImportSave) {
+            // Its notes are all an import has, which is exactly what sheet
+            // music needs.
+            Button("Share Sheet Music") { shareImportedSheetMusic() }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("An imported song is only its notes, with no recording behind it, so there's nothing to save as a melody. The file itself is still wherever you imported it from.")
+            Text("An imported song is only its notes, with no recording behind it, so there's nothing to save as a melody. You can still share it as sheet music.")
         }
         .alert("Couldn't Save",
                isPresented: Binding(get: { saveError != nil },
@@ -118,119 +123,161 @@ struct ContentView: View {
 
     // MARK: - Controls
 
+    /// Grouped by what each part is for - where you are on the keyboard, the
+    /// take, the library - with Record as the one primary control. It used to
+    /// be eleven identical circles, Settings exactly as loud as Record.
     private var controlBar: some View {
-        // 12 apart rather than 14: on a current iPhone the row had about 14
-        // points to spare, and the octave range needed more than that.
-        HStack(spacing: 12) {
-            circleButton("minus", enabled: firstOctave > 0) {
-                firstOctave -= 1
-            }
-            .accessibilityLabel("Octave down")
-
-            rangeButton
-
-            circleButton("plus", enabled: firstOctave < maxFirstOctave) {
-                firstOctave += 1
-            }
-            .accessibilityLabel("Octave up")
-
-            timeReadout
-
-            Spacer(minLength: 0)
-
-            circleButton("pedal.accelerator",
-                         tint: conductor.isSustaining ? .green : .white,
-                         enabled: conductor.isInstrumentLoaded) {
-                conductor.setSustain(!conductor.isSustaining)
-            }
-            .accessibilityLabel(conductor.isSustaining ? "Sustain on" : "Sustain off")
-
-            circleButton("arrow.counterclockwise", enabled: conductor.canPlay || conductor.isRecording) {
-                // Sits right beside Record, so a slip is easy. Asking every
-                // time would be a tax; asking only when a take would be lost
-                // is not.
-                if conductor.isRecording || conductor.hasUnsavedTake {
-                    isConfirmingReset = true
-                } else {
-                    resetTake()
+        HStack(spacing: 8) {
+            // Each group takes its natural width and only the spacers give.
+            // Left flexible, the groups competed with the spacers for room
+            // and SwiftUI squeezed the text out of the Save button to make it.
+            pedal.fixedSize()
+            octaveStepper.fixedSize()
+            Spacer(minLength: 6)
+            transport.fixedSize()
+            Spacer(minLength: 6)
+            panelIcon("music.note.list", enabled: true) { showRecordings = true }
+                .accessibilityLabel("Melodies")
+            panelIcon("gearshape", enabled: true) { showSettings = true }
+                .accessibilityLabel("Settings")
+                .popover(isPresented: $showSettings) {
+                    SettingsView(showsLabels: $showsLabels)
+                        .presentationCompactAdaptation(.popover)
                 }
-            }
-            .accessibilityLabel("Reset recording")
-
-            circleButton(conductor.isRecording ? "stop.fill" : "record.circle",
-                         tint: .red,
-                         enabled: conductor.isInstrumentLoaded) {
-                if !conductor.isRecording { elapsed = 0 }
-                conductor.toggleRecording()
-            }
-            .accessibilityLabel(conductor.isRecording ? "Stop recording" : "Start recording")
-
-            circleButton(conductor.isPlaying ? "pause.fill" : "play.fill",
-                         enabled: conductor.canPlay && !conductor.isRecording) {
-                conductor.togglePlayback()
-            }
-            .accessibilityLabel(conductor.isPlaying ? "Pause playback" : "Play recording")
-
-            // Enabled for an import too, so a tap can say why it can't be saved
-            // - a greyed-out button on a phone explains nothing, and there is
-            // no hover to hang a tooltip on.
-            circleButton("square.and.arrow.down",
-                         enabled: (conductor.hasUnsavedTake || conductor.hasSequence) && !conductor.isRecording) {
-                // An import on screen is what the player is looking at, so a
-                // tap means "save this" - explain, rather than quietly saving
-                // an earlier take they can't see.
-                if conductor.hasSequence {
-                    isExplainingImportSave = true
-                } else {
-                    takeName = RecordingStore.shared.suggestedName()
-                    isNamingTake = true
-                }
-            }
-            .accessibilityLabel("Save recording")
-
-            circleButton("list.bullet", enabled: true) {
-                showRecordings = true
-            }
-            .accessibilityLabel("Show saved melodies")
-
-            circleButton("gearshape", enabled: true) {
-                showSettings = true
-            }
-            .accessibilityLabel("Settings")
-            .popover(isPresented: $showSettings) {
-                SettingsView(showsLabels: $showsLabels)
-                    .presentationCompactAdaptation(.popover)
-            }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(Color(red: 0.25, green: 0.27, blue: 0.30))
+        // Here rather than beside the Melodies sheet: two sheets on one view
+        // and only the last one presents.
+        .sheet(item: $sharedFile) { ExportShareSheet(file: $0) }
+        .background {
+            // Black lacquer, like the case of the instrument, with a catch of
+            // light along its top edge. It meets the felt drawn at the back
+            // of the keys.
+            LinearGradient(colors: [Color(white: 0.14), Color(white: 0.07)],
+                           startPoint: .top, endPoint: .bottom)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                }
+                .ignoresSafeArea(edges: [.top, .horizontal])
+        }
     }
 
-    static let bezelColor = Color(white: 0.16)
+    static let bezelColor = Color(white: 0.06)
+
+    /// The keys at their proper proportions, and the music written out in the
+    /// space that leaves above them. On a phone the keys need every point of
+    /// the height, so there is no room for a score and none is shown.
+    private var keyboardArea: some View {
+        GeometryReader { proxy in
+            let whiteKeys = CGFloat(octaveCount * 7 + 1)
+            let keyLength = min(proxy.size.height,
+                                proxy.size.width / whiteKeys * PianoLayout.longestKeyRatio)
+            let scoreHeight = proxy.size.height - keyLength
+            let showsScore = scoreHeight >= Self.shortestScore
+            VStack(spacing: 0) {
+                if showsScore {
+                    ScoreView().frame(height: scoreHeight)
+                }
+                KeyboardView(firstOctave: firstOctave,
+                             octaveCount: octaveCount,
+                             showsLabels: showsLabels)
+                    .frame(height: showsScore ? keyLength : proxy.size.height)
+            }
+        }
+        .background(Self.bezelColor)
+    }
+
+    /// Below this a grand staff is too cramped to read, and the keys may as
+    /// well have the height.
+    private static let shortestScore: CGFloat = 150
 
     /// A front edge below the keys. Devices with a home indicator get most of
     /// this from the safe area; this is the minimum for those without one.
     private var bezel: some View {
-        Rectangle()
-            .fill(Self.bezelColor)
+        LinearGradient(colors: [Color(white: 0.10), Self.bezelColor],
+                       startPoint: .top, endPoint: .bottom)
             .frame(height: 14)
             .overlay(alignment: .top) {
-                Rectangle().fill(Color.black.opacity(0.4)).frame(height: 1)
+                Rectangle().fill(Color.black.opacity(0.5)).frame(height: 1)
             }
     }
 
-    private var timeReadout: some View {
-        Text(saveConfirmation ?? format(elapsed))
-            .font(.system(.callout, design: .monospaced))
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(minWidth: 88)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .background(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.7), lineWidth: 2))
+    // MARK: Pedal
+
+    /// A pedal you hold, the way a pianist uses one: down while the thumb is
+    /// on it, up when it lifts - changed with each chord so the harmonies don't
+    /// blur. A quick tap still latches it down for hands-free sustain, and
+    /// another tap lifts it.
+    ///
+    /// Touches come through the same tracker as the keys, which recognises
+    /// alongside every other touch, so the pedal works while the other hand is
+    /// playing.
+    private var pedal: some View {
+        let down = conductor.isSustaining
+        let loaded = conductor.isInstrumentLoaded
+        return Text("Pedal")
+            .font(.system(size: unit * 0.375, weight: .semibold))
+            .foregroundStyle(down ? Color.white : Color(white: 0.92))
+            .padding(.horizontal, 14)
+            .frame(height: unit)
+            .background {
+                // Down is a lit, pressed-in green rather than a tint on an
+                // icon, so it reads by brightness as well as by colour.
+                Capsule()
+                    .fill(LinearGradient(colors: down
+                                         ? [Color(red: 0.16, green: 0.50, blue: 0.29),
+                                            Color(red: 0.24, green: 0.66, blue: 0.38)]
+                                         : Self.panelColors,
+                                         startPoint: .top, endPoint: .bottom))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(down ? 0.25 : 0.14),
+                                                    lineWidth: 1))
+                    .shadow(color: .black.opacity(down ? 0 : 0.5), radius: 1.5, y: 1)
+            }
+            .overlay {
+                TouchTracker { points in pedalTouched(!points.isEmpty) }
+                    .allowsHitTesting(loaded)
+            }
+            .opacity(loaded ? 1 : 0.4)
+            .accessibilityElement()
+            .accessibilityLabel("Sustain pedal")
+            .accessibilityValue(down ? "Down" : "Up")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Hold while playing to sustain. Tap to keep it down.")
+            .accessibilityAction { conductor.setSustain(!conductor.isSustaining) }
+    }
+
+    @State private var pedalPressStart: Date?
+    @State private var pedalWasLatched = false
+
+    private func pedalTouched(_ touching: Bool) {
+        if touching {
+            guard pedalPressStart == nil else { return }
+            pedalPressStart = Date()
+            pedalWasLatched = conductor.isSustaining
+            conductor.setSustain(true)
+        } else {
+            guard let start = pedalPressStart else { return }
+            pedalPressStart = nil
+            let tapped = Date().timeIntervalSince(start) < 0.3
+            // A quick tap on a lifted pedal leaves it latched down. Anything
+            // else - a hold, or a tap on a latched pedal - lets it up.
+            if tapped && !pedalWasLatched { return }
+            conductor.setSustain(false)
+        }
+    }
+
+    // MARK: Where you are
+
+    private var octaveStepper: some View {
+        HStack(spacing: 4) {
+            panelIcon("minus", enabled: firstOctave > 0) { firstOctave -= 1 }
+                .accessibilityLabel("Octave down")
+            rangeButton
+            panelIcon("plus", enabled: firstOctave < maxFirstOctave) { firstOctave += 1 }
+                .accessibilityLabel("Octave up")
+        }
     }
 
     /// The notes on screen, between the buttons that move them - a stepper, read
@@ -253,29 +300,155 @@ struct ContentView: View {
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 10)
-                .frame(height: 40)
-                .background(Capsule().stroke(Color.white.opacity(canWiden ? 0.6 : 0.2), lineWidth: 2))
+                .frame(height: unit)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PanelButtonStyle(shape: Capsule()))
         .disabled(!canWiden)
+        .opacity(canWiden ? 1 : 0.5)
         .accessibilityLabel("Keyboard range")
         .accessibilityValue("\(low) to \(high)")
         .accessibilityHint(octaveCount > 1 ? "Shows one octave" : "Shows \(maxOctaves) octaves")
     }
 
-    private func circleButton(_ symbol: String,
-                              tint: Color = .white,
-                              enabled: Bool,
-                              action: @escaping () -> Void) -> some View {
+    // MARK: The take
+
+    /// Discard, record, play, how long, save. Discard and Save appear only when
+    /// there is something for them to act on, but they keep their places, so
+    /// nothing shifts under a thumb when they arrive.
+    private var transport: some View {
+        HStack(spacing: 6) {
+            panelIcon("trash", enabled: true) { discardTapped() }
+                .accessibilityLabel(conductor.hasSequence ? "Clear" : "Discard take")
+                .contextual(conductor.canPlay || conductor.isRecording)
+
+            recordButton
+
+            panelIcon(conductor.isPlaying ? "pause.fill" : "play.fill",
+                      enabled: conductor.canPlay && !conductor.isRecording) {
+                conductor.togglePlayback()
+            }
+            .accessibilityLabel(conductor.isPlaying ? "Pause" : "Play")
+
+            timeReadout
+
+            saveButton
+                .contextual((conductor.hasUnsavedTake || conductor.hasSequence) && !conductor.isRecording)
+        }
+    }
+
+    /// The primary control: bigger, and the only filled colour on the bar. It
+    /// glows while a take is running, so recording can't be missed.
+    private var recordButton: some View {
+        let recording = conductor.isRecording
+        let loaded = conductor.isInstrumentLoaded
+        return Button {
+            if !recording { elapsed = 0 }
+            conductor.toggleRecording()
+        } label: {
+            Group {
+                if recording {
+                    RoundedRectangle(cornerRadius: 3).fill(.white)
+                        .frame(width: unit * 0.375, height: unit * 0.375)
+                } else {
+                    Circle().fill(.white).frame(width: unit * 0.42, height: unit * 0.42)
+                }
+            }
+            .frame(width: unit + 8, height: unit + 8)
+        }
+        .buttonStyle(PanelButtonStyle(shape: Circle(),
+                                      colors: [Color(red: 0.93, green: 0.25, blue: 0.22),
+                                               Color(red: 0.68, green: 0.10, blue: 0.10)]))
+        .shadow(color: .red.opacity(recording ? 0.7 : 0), radius: 8)
+        .animation(.easeInOut(duration: 0.2), value: recording)
+        .disabled(!loaded)
+        .opacity(loaded ? 1 : 0.4)
+        .accessibilityLabel(recording ? "Stop recording" : "Record")
+    }
+
+    /// Words rather than an icon: the download-arrow glyph this used to be
+    /// read as "download", not "keep this take".
+    private var saveButton: some View {
+        Button { saveTapped() } label: {
+            Text("Save")
+                .font(.system(size: unit * 0.375, weight: .semibold))
+                .foregroundStyle(Color(white: 0.08))
+                .padding(.horizontal, 14)
+                .frame(height: unit)
+        }
+        .buttonStyle(PanelButtonStyle(shape: Capsule(),
+                                      colors: [Color(white: 0.97), Color(white: 0.82)]))
+        .accessibilityLabel("Save take")
+    }
+
+    /// An inset display rather than an outlined box, and red while a take is
+    /// running - the one state that most needs to be unmissable.
+    private var timeReadout: some View {
+        Text(saveConfirmation ?? format(elapsed))
+            .font(.system(.callout, design: .monospaced).weight(.medium))
+            .foregroundStyle(conductor.isRecording
+                             ? Color(red: 1.0, green: 0.38, blue: 0.33)
+                             : Color(white: 0.92))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(minWidth: 80)
+            .padding(.vertical, (unit - 22) / 2)
+            .padding(.horizontal, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.55))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(LinearGradient(colors: [.black.opacity(0.6), .white.opacity(0.08)],
+                                                     startPoint: .top, endPoint: .bottom),
+                                      lineWidth: 1))
+            }
+    }
+
+    // Sits right beside Record, so a slip is easy. Asking every time would be
+    // a tax; asking only when a take would be lost is not.
+    private func discardTapped() {
+        if conductor.isRecording || conductor.hasUnsavedTake {
+            isConfirmingReset = true
+        } else {
+            resetTake()
+        }
+    }
+
+    // An import on screen is what the player is looking at, so a tap means
+    // "save this" - explain, rather than quietly saving an earlier take they
+    // can't see.
+    private func saveTapped() {
+        if conductor.hasSequence {
+            isExplainingImportSave = true
+        } else {
+            takeName = RecordingStore.shared.suggestedName()
+            isNamingTake = true
+        }
+    }
+
+    // MARK: Panel parts
+
+    static let panelColors = [Color(white: 0.24), Color(white: 0.15)]
+
+    /// The size every control is built from. A little bigger on iPad, where
+    /// phone-sized buttons spread across a 13-inch bar looked lost. Decided by
+    /// device rather than size class: a large iPhone in landscape reports a
+    /// regular width too, and its bar has no room to grow.
+    private var unit: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 46 : 40
+    }
+
+    private func panelIcon(_ symbol: String,
+                           enabled: Bool,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(enabled ? tint : tint.opacity(0.3))
-                .frame(width: 40, height: 40)
-                .background(Circle().stroke(Color.white.opacity(enabled ? 0.6 : 0.2), lineWidth: 2))
+                .font(.system(size: unit * 0.4, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: unit, height: unit)
         }
+        .buttonStyle(PanelButtonStyle(shape: Circle()))
         .disabled(!enabled)
-        .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.35)
     }
 
     @ViewBuilder
@@ -298,10 +471,11 @@ struct ContentView: View {
         firstOctave = min(max(0, firstOctave), maxFirstOctave)
     }
 
-    /// On a screen with room for it, start wide instead of on one octave.
+    /// On an iPad, start wide instead of on one octave of enormous keys. A
+    /// phone starts on one, where two are thin enough to choose deliberately.
     private func applyDefaultWidth() {
         guard !hasChosenOctaveCount else { return }
-        if maxOctaves >= 3 { octaveCount = maxOctaves }
+        if UIDevice.current.userInterfaceIdiom == .pad { octaveCount = maxOctaves }
     }
 
     /// Moves the keyboard to where the imported melody is played, as widely as
@@ -310,6 +484,7 @@ struct ContentView: View {
     private func playImported() {
         guard let (score, name) = imported else { return }
         imported = nil
+        importName = name
         conductor.load(score)
         let framing = score.framing(maximumOctaves: maxOctaves)
         octaveCount = framing.octaveCount
@@ -319,6 +494,17 @@ struct ContentView: View {
         // The readout is the one place on screen with room for words; the
         // song's name sits there long enough to read, then the clock returns.
         flash(name, for: 2.5)
+    }
+
+    private func shareImportedSheetMusic() {
+        do {
+            sharedFile = ExportedFile(url: try SheetMusicPDF.write(conductor.currentScore,
+                                                                   named: importName,
+                                                                   subtitle: "Imported into GoPiano"),
+                                      kind: .sheetMusic)
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 
     private func resetTake() {
@@ -349,5 +535,39 @@ struct ContentView: View {
         let hundredths = Int((max(0, seconds) * 100).rounded())
         return String(format: "%d:%02d.%02d",
                       hundredths / 6000, (hundredths / 100) % 60, hundredths % 100)
+    }
+}
+
+/// A soft raised key on the instrument's panel: lit from above, pressing in
+/// when touched.
+private struct PanelButtonStyle<S: InsettableShape>: ButtonStyle {
+    let shape: S
+    var colors: [Color] = ContentView.panelColors
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        return configuration.label
+            .background {
+                shape
+                    .fill(LinearGradient(colors: pressed ? colors.reversed() : colors,
+                                         startPoint: .top, endPoint: .bottom))
+                    .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.18),
+                                                                        .white.opacity(0.03)],
+                                                               startPoint: .top, endPoint: .bottom),
+                                                lineWidth: 1))
+                    .shadow(color: .black.opacity(pressed ? 0 : 0.5), radius: 1.5, y: 1)
+            }
+            .contentShape(shape)
+    }
+}
+
+private extension View {
+    /// Shown only when it applies, but always holding its place, so the
+    /// controls around it never move.
+    func contextual(_ shown: Bool) -> some View {
+        opacity(shown ? 1 : 0)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+            .animation(.easeOut(duration: 0.15), value: shown)
     }
 }
