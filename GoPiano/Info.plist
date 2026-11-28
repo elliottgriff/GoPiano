@@ -8,5 +8,36 @@
 	     export-compliance key, Xcode leaves this one alone. -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- What "Open in GoPiano" is offered for: voice memos and other
+	     recordings, to find the melody in, and MIDI files, to play. Alternate,
+	     so GoPiano is offered beside the usual players but never takes over
+	     as the default for opening audio. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Recording</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MIDI File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.midi-audio</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

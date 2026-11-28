@@ -79,6 +79,10 @@ struct MelodyScore: Codable, Hashable {
     /// Beats per minute, for music played to the metronome. Lets an exported
     /// MIDI file carry the tempo it was played at, so a DAW's grid lines up.
     var tempo: Double?
+    /// Whether the recording is of a voice - sung into the microphone, or an
+    /// imported voice memo - rather than of the keys. Its notes were heard,
+    /// not played, so they can be played back on any instrument.
+    var isSung: Bool?
 
     var isEmpty: Bool { spans.isEmpty }
 

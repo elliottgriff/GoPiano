@@ -29,7 +29,13 @@ struct ContentView: View {
     @State private var showSettings = false
     /// A melody imported from the library, waiting for the sheet to go so it
     /// can be played on the keyboard rather than behind it.
-    @State private var imported: (score: MelodyScore, name: String)?
+    @State private var imported: ImportedMelody?
+    /// A file sent from another app while the library was up, opened once
+    /// the library has gone.
+    @State private var opening: URL?
+    /// Set while a voice memo sent from another app is listened to.
+    @State private var isListeningToMemo = false
+    @State private var openError: String?
     @State private var isConfirmingReset = false
     @State private var isExplainingImportSave = false
     /// The name of the imported song on the keyboard, for its sheet music.
@@ -84,8 +90,43 @@ struct ContentView: View {
         // inside the safe area, so the front edge reads as one strip.
         .background(finish.bezel.ignoresSafeArea())
         .overlay(alignment: .top) { startupError }
-        .sheet(isPresented: $showRecordings, onDismiss: playImported) {
-            RecordingsView(onImport: { imported = ($0, $1) })
+        .overlay {
+            if isListeningToMemo { ListeningBadge() }
+        }
+        .sheet(isPresented: $showRecordings, onDismiss: {
+            playImported()
+            if let url = opening {
+                opening = nil
+                open(url)
+            }
+        }) {
+            RecordingsView(onImport: { imported = $0 })
+        }
+        // A voice memo or a MIDI file sent here with "Open in GoPiano".
+        // A voice memo or a MIDI file sent here with "Open in GoPiano".
+        .onOpenURL { url in
+            showSettings = false
+            if showRecordings {
+                opening = url
+                showRecordings = false
+            } else {
+                open(url)
+            }
+        }
+        .onChange(of: conductor.sungNote) { _, note in follow(note) }
+        .alert("Can't Listen",
+               isPresented: Binding(get: { conductor.listeningError != nil },
+                                    set: { if !$0 { conductor.listeningError = nil } })) {
+            Button("OK", role: .cancel) { conductor.listeningError = nil }
+        } message: {
+            Text(conductor.listeningError ?? "")
+        }
+        .alert("Couldn't Open",
+               isPresented: Binding(get: { openError != nil },
+                                    set: { if !$0 { openError = nil } })) {
+            Button("OK", role: .cancel) { openError = nil }
+        } message: {
+            Text(openError ?? "")
         }
         .alert("Save Melody", isPresented: $isNamingTake) {
             TextField("Name", text: $takeName)
@@ -221,27 +262,31 @@ struct ContentView: View {
     /// Beside the pedal, so the sound can change mid-play. On a phone, where
     /// the bar has no room to spare, it's an icon; an iPad has room for the
     /// name as well.
+    /// What's played: an instrument on the keys, or Voice - sing, hum or
+    /// whistle, and the notes light on the keys and, on iPad, are written
+    /// down. Lit blue while the microphone listens.
     private var instrumentButton: some View {
+        let listening = conductor.isListening
         let current = conductor.instrument
         return Menu {
-            Picker("Instrument", selection: Binding(get: { conductor.instrument },
-                                                    set: { conductor.setInstrument($0) })) {
-                ForEach(Instrument.allCases) { instrument in
-                    Label(instrument.name, systemImage: instrument.symbol).tag(instrument)
-                }
-            }
+            InstrumentPicker()
         } label: {
-            PanelKey(shape: Capsule(), colors: nil, pressed: false) {
+            PanelKey(shape: Capsule(),
+                     colors: listening
+                         ? [Color(red: 0.16, green: 0.38, blue: 0.78),
+                            Color(red: 0.25, green: 0.52, blue: 0.95)]
+                         : nil,
+                     pressed: false) {
                 HStack(spacing: 6) {
-                    Image(systemName: current.symbol)
+                    Image(systemName: listening ? "mic.fill" : current.symbol)
                         .font(.system(size: unit * 0.38, weight: .semibold))
                     if isPad {
-                        Text(current.name)
+                        Text(listening ? "Voice" : current.name)
                             .font(.system(size: unit * 0.36, weight: .semibold))
                             .lineLimit(1)
                     }
                 }
-                .foregroundStyle(finish.panelText)
+                .foregroundStyle(listening ? .white : finish.panelText)
                 .padding(.horizontal, isPad ? 14 : 0)
                 .frame(minWidth: unit, minHeight: unit)
             }
@@ -249,7 +294,24 @@ struct ContentView: View {
         .disabled(!conductor.isInstrumentLoaded)
         .opacity(conductor.isInstrumentLoaded ? 1 : 0.4)
         .accessibilityLabel("Instrument")
-        .accessibilityValue(current.name)
+        .accessibilityValue(listening ? "Voice, listening" : current.name)
+    }
+
+    // MARK: Voice
+
+    /// Brings the keyboard round to a sung note that's off its edge, so a
+    /// voice is never singing to keys that can't be seen. Only once the note
+    /// has held a moment: a cough or a passing sound shouldn't move it.
+    private func follow(_ note: UInt8?) {
+        guard let note else { return }
+        let low = baseMIDINote + firstOctave * 12
+        let high = low + octaveCount * 12
+        guard Int(note) < low || Int(note) > high else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard conductor.sungNote == note else { return }
+            firstOctave = min(maxFirstOctave, max(0, (Int(note) - baseMIDINote) / 12))
+        }
     }
 
     // MARK: Pedal
@@ -540,11 +602,58 @@ struct ContentView: View {
     /// Moves the keyboard to where the imported melody is played, as widely as
     /// the screen allows, and starts it. Notes outside that still sound; they
     /// just have no key on screen to light.
+    /// Opens a file another app sent: a MIDI file is played on the keys, a
+    /// voice memo is listened to, kept in the library, and played back.
+    private func open(_ url: URL) {
+        guard !isListeningToMemo else { return }
+        if VoiceMemoImport.isMIDI(url) {
+            do {
+                let score = try MIDIImport.score(from: url)
+                VoiceMemoImport.discardInboxCopy(url)
+                imported = .score(score, name: url.deletingPathExtension().lastPathComponent)
+                playImported()
+            } catch {
+                VoiceMemoImport.discardInboxCopy(url)
+                openError = error.localizedDescription
+            }
+            return
+        }
+        conductor.stopPlayback()
+        isListeningToMemo = true
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try VoiceMemoImport.importMemo(at: url) }
+            await MainActor.run {
+                isListeningToMemo = false
+                switch result {
+                case .success(let recording):
+                    imported = .recording(recording)
+                    playImported()
+                case .failure(let error):
+                    openError = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func playImported() {
-        guard let (score, name) = imported else { return }
+        guard let melody = imported else { return }
         imported = nil
-        importName = name
-        conductor.load(score)
+        let score: MelodyScore
+        let name: String
+        switch melody {
+        case .score(let notes, let title):
+            score = notes
+            name = title
+            importName = title
+            conductor.load(notes)
+        case .recording(let recording):
+            guard (try? conductor.load(recording)) != nil else {
+                openError = "That melody could not be opened."
+                return
+            }
+            score = conductor.currentScore
+            name = recording.name
+        }
         let framing = score.framing(maximumOctaves: maxOctaves)
         octaveCount = framing.octaveCount
         firstOctave = framing.firstOctave
@@ -686,5 +795,21 @@ private extension View {
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
             .animation(.easeOut(duration: 0.15), value: shown)
+    }
+}
+
+/// The instruments, and Voice: shared by the control bar and the library.
+struct InstrumentPicker: View {
+    @Environment(Conductor.self) private var conductor
+
+    var body: some View {
+        Picker("Instrument", selection: Binding(get: { conductor.choice },
+                                                set: { conductor.choose($0) })) {
+            ForEach(Instrument.allCases) { instrument in
+                Label(instrument.name, systemImage: instrument.symbol)
+                    .tag(Conductor.Choice.instrument(instrument))
+            }
+            Label("Voice", systemImage: "mic").tag(Conductor.Choice.voice)
+        }
     }
 }
