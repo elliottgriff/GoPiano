@@ -672,13 +672,6 @@ final class Conductor {
     /// The microphone's own engine, while listening. Only ever touched on the
     /// audio queue.
     @ObservationIgnored private var microphone: AVAudioEngine?
-    /// The metronome while listening: played by the microphone's engine, so
-    /// its echo canceller knows the click and takes it back out of what the
-    /// microphone hears. Nil when not listening, or when the device has no
-    /// echo cancellation, and the instrument engine's click is used instead.
-    @ObservationIgnored private var microphoneClick: AVAudioPlayerNode?
-    private var clickPlayer: AVAudioPlayerNode { microphoneClick ?? click.player }
-
     /// What's listening, so the metronome can tell it to filter out its click.
     @ObservationIgnored private var voiceListener: VoiceListener?
     @ObservationIgnored private var voiceFeed: VoiceFeed?
@@ -700,7 +693,6 @@ final class Conductor {
         voiceListener = listener
         voiceFeed = feed
         filterClick(clickTimer != nil)
-        let sounds = clickSounds
         audioQueue.async { [self] in
             // The session's category can only change with the engine stopped.
             engine.stop()
@@ -715,26 +707,7 @@ final class Conductor {
                 // then fails to start again under playback alone - so the
                 // instruments went silent after singing, until a relaunch.
                 voice.ring.clear()
-                let opened = try openMicrophone(cancellingEcho: true, listener: listener, feed: feed, clicks: sounds)
-                self.microphone = opened.engine
-                DispatchQueue.main.async { [self] in microphoneClick = opened.clicks }
-
-                // Echo cancellation isn't everywhere - the Simulator, some
-                // routes - and where it fails the microphone can start but
-                // deliver nothing. If nothing has arrived after a moment, it
-                // opens again without it, so singing never just stops working.
-                audioQueue.asyncAfter(deadline: .now() + 0.8) { [self] in
-                    guard self.microphone === opened.engine,
-                          !opened.hearing.isWorking(rate: opened.rate) else { return }
-                    Log("No sound with echo cancellation; listening without it")
-                    closeMicrophone()
-                    do {
-                        let plain = try openMicrophone(cancellingEcho: false, listener: listener, feed: feed, clicks: nil)
-                        self.microphone = plain.engine
-                    } catch {
-                        Log("Could not start listening: \(error)")
-                    }
-                }
+                self.microphone = try openMicrophone(listener: listener, feed: feed)
             } catch {
                 Log("Could not start listening: \(error)")
                 closeMicrophone()
@@ -752,63 +725,24 @@ final class Conductor {
         }
     }
 
-    /// How much the microphone's tap has delivered, and whether any of it
-    /// was more than digital silence - which a working microphone never gives.
-    final class Hearing: @unchecked Sendable {
-        var frames = 0
-        var anySound = false
-        func isWorking(rate: Double) -> Bool { anySound && Double(frames) >= rate * 0.4 }
-    }
-
-    /// Starts an engine for the microphone, with or without echo cancellation,
-    /// feeding the pitch tracker and the voice for takes. With echo
-    /// cancellation it also gets a player for the metronome, since the
-    /// canceller can only take out what its own engine plays. On the audio
-    /// queue.
-    private func openMicrophone(cancellingEcho: Bool, listener: VoiceListener, feed: VoiceFeed,
-                                clicks sounds: (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)?) throws
-        -> (engine: AVAudioEngine, clicks: AVAudioPlayerNode?, hearing: Hearing, rate: Double) {
+    /// Starts an engine for the microphone, feeding the pitch tracker and the
+    /// voice for takes. On the audio queue.
+    ///
+    /// No voice processing: on an iPhone it turns the app's other audio right
+    /// down, so a sung take played back in Voice came out silent, and its echo
+    /// cancelling didn't keep the metronome out of the voice either. Over the
+    /// speaker the metronome only counts a sung take in instead.
+    private func openMicrophone(listener: VoiceListener, feed: VoiceFeed) throws -> AVAudioEngine {
         let microphone = AVAudioEngine()
         let input = microphone.inputNode
-
-        // Echo cancellation - the voice processing calls use - so that what
-        // this engine plays is taken back out of what its microphone hears.
-        // Over a phone's speaker the metronome's click is loud and distorted,
-        // a few millimetres from the microphone: it went into takes, and was
-        // even heard as a note. Filtering its pitches wasn't enough. The
-        // instruments, on the other engine, aren't ducked for it.
-        var clicks: AVAudioPlayerNode?
-        if cancellingEcho {
-            do {
-                try input.setVoiceProcessingEnabled(true)
-                input.voiceProcessingOtherAudioDuckingConfiguration =
-                    .init(enableAdvancedDucking: false, duckingLevel: .min)
-                if let sounds {
-                    let player = AVAudioPlayerNode()
-                    microphone.attach(player)
-                    microphone.connect(player, to: microphone.mainMixerNode, format: sounds.accent.format)
-                    clicks = player
-                }
-            } catch {
-                Log("No echo cancellation: \(error)")
-            }
-        }
 
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw ListeningError.noMicrophone
         }
-        let hearing = Hearing()
         // Pitch from the tap, which arrives in tenth-of-a-second pieces: fine
         // for following a voice, and off the audio thread.
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, when in
-            hearing.frames += Int(buffer.frameLength)
-            if !hearing.anySound, let data = buffer.floatChannelData?[0] {
-                for index in 0..<Int(buffer.frameLength) where data[index] != 0 {
-                    hearing.anySound = true
-                    break
-                }
-            }
             listener.take(buffer, at: when)
         }
         // The voice for takes straight from the audio thread, a few
@@ -824,7 +758,7 @@ final class Conductor {
         microphone.attach(sink)
         microphone.connect(input, to: sink, format: format)
         try microphone.start()
-        return (microphone, clicks, hearing, format.sampleRate)
+        return microphone
     }
 
     /// Stops and lets go of the microphone's engine. On the audio queue.
@@ -835,7 +769,6 @@ final class Conductor {
         }
         microphone = nil
         voice.ring.clear()
-        DispatchQueue.main.async { [self] in microphoneClick = nil }
     }
 
     private func stopListening() {
@@ -1042,7 +975,8 @@ final class Conductor {
         let downbeat = firstClick + interval * Double(metronome.beatsPerBar)
         transport = .countingIn
         countInBeatsLeft = metronome.beatsPerBar
-        startClicks(at: firstClick, interval: interval, beatsPerBar: metronome.beatsPerBar)
+        startClicks(at: firstClick, interval: interval, beatsPerBar: metronome.beatsPerBar,
+                    quietFrom: isListening && Self.playsThroughDevice ? downbeat : nil)
         let start = DispatchWorkItem { [weak self] in self?.beginTake(at: downbeat) }
         downbeatWork = start
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0, downbeat - now), execute: start)
@@ -1259,6 +1193,27 @@ final class Conductor {
     private var clickNext = 0
     private var downbeatWork: DispatchWorkItem?
 
+    /// From this moment the click is shown rather than heard. Singing over the
+    /// phone's own speaker, the microphone picks the click up - a few
+    /// millimetres away and louder than the voice - and no filtering got it
+    /// back out of the take. So it counts the take in, then goes quiet, and
+    /// the beat is shown on the record button. Nil while it clicks throughout.
+    @ObservationIgnored private var clickQuietFrom: TimeInterval?
+    /// True once the click has gone quiet for a take, for the keyboard to say so.
+    private(set) var clickIsShown = false
+    /// Counts the beats while the click is shown rather than heard, for the
+    /// record button to pulse on, and whether it's the first of a bar.
+    private(set) var shownBeat = 0
+    private(set) var shownBeatIsAccent = false
+
+    /// Whether what's played comes out of the device itself, where the
+    /// microphone hears it - rather than headphones, Bluetooth or a speaker
+    /// elsewhere.
+    private static var playsThroughDevice: Bool {
+        let outputs = Settings.session.currentRoute.outputs
+        return outputs.isEmpty || outputs.contains { $0.portType == .builtInSpeaker || $0.portType == .builtInReceiver }
+    }
+
     /// Two short, bright ticks - higher for the first beat of the bar - made in
     /// whatever format the graph gave the click, which a player has to match.
     private func makeClickSounds() -> (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)? {
@@ -1288,13 +1243,15 @@ final class Conductor {
         return (accent, beat)
     }
 
-    private func startClicks(at origin: TimeInterval, interval: TimeInterval, beatsPerBar: Int) {
+    private func startClicks(at origin: TimeInterval, interval: TimeInterval, beatsPerBar: Int,
+                             quietFrom: TimeInterval? = nil) {
         stopClicks()
+        clickQuietFrom = quietFrom
         clickOrigin = origin
         clickInterval = interval
         clickBeatsPerBar = beatsPerBar
         clickNext = 0
-        clickPlayer.play()
+        click.player.play()
         filterClick(true)
         scheduleClicks()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.scheduleClicks() }
@@ -1308,8 +1265,20 @@ final class Conductor {
         guard let sounds = clickSounds else { return }
         while clickOrigin + Double(clickNext) * clickInterval < now + 0.4 {
             let at = clickOrigin + Double(clickNext) * clickInterval
-            let sound = clickNext % clickBeatsPerBar == 0 ? sounds.accent : sounds.beat
-            clickPlayer.scheduleBuffer(sound, at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
+            let accent = clickNext % clickBeatsPerBar == 0
+            if let quiet = clickQuietFrom, at >= quiet - 0.001 {
+                // Shown, not heard: the record button pulses as the beat lands.
+                let beat = clickNext
+                DispatchQueue.main.asyncAfter(deadline: .now() + max(0, at - now)) { [weak self] in
+                    guard let self, self.clickTimer != nil else { return }
+                    self.shownBeatIsAccent = accent
+                    self.shownBeat = beat
+                    if !self.clickIsShown { self.clickIsShown = true }
+                }
+            } else {
+                let sound = accent ? sounds.accent : sounds.beat
+                click.player.scheduleBuffer(sound, at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
+            }
             clickNext += 1
         }
         if transport == .countingIn {
@@ -1322,6 +1291,8 @@ final class Conductor {
     private func stopClicks() {
         clickTimer?.invalidate()
         clickTimer = nil
+        clickQuietFrom = nil
+        if clickIsShown { clickIsShown = false }
         // The last click is still ringing in the room for a moment.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self, self.clickTimer == nil else { return }
@@ -1330,7 +1301,6 @@ final class Conductor {
         downbeatWork?.cancel()
         downbeatWork = nil
         click.player.stop()
-        microphoneClick?.stop()
     }
 
     /// The take so far, written in bars: rebuilt as each note starts and ends.
