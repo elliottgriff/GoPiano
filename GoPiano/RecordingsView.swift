@@ -8,8 +8,18 @@
 //  deserve to be visible rather than buried behind an icon.
 //
 
+import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
+
+/// Something brought in from outside, waiting to be played on the keyboard.
+enum ImportedMelody {
+    /// Notes alone - a MIDI file - for the sampler to perform.
+    case score(MelodyScore, name: String)
+    /// A recording with the notes heard in it - a voice memo - played back in
+    /// its own sound while the keys follow.
+    case recording(Recording)
+}
 
 struct RecordingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +27,7 @@ struct RecordingsView: View {
 
     /// Handed an imported melody to perform on the keyboard once this sheet
     /// has gone, rather than playing it in here behind the library.
-    let onImport: (MelodyScore, _ name: String) -> Void
+    let onImport: (ImportedMelody) -> Void
 
     @State private var recordings: [Recording] = []
     @State private var selection: Recording?
@@ -30,6 +40,9 @@ struct RecordingsView: View {
     /// Set once an imported melody has been handed to the keyboard, so going
     /// away does not stop the performance it is about to start.
     @State private var handedOff = false
+    /// Set while a voice memo is being listened to for its notes.
+    @State private var isListening = false
+    @State private var isExplainingVoiceMemos = false
 
     var body: some View {
         NavigationStack {
@@ -37,7 +50,7 @@ struct RecordingsView: View {
                 if recordings.isEmpty {
                     ContentUnavailableView("No Melodies",
                                            systemImage: "waveform",
-                                           description: Text("Record something, then tap Save to keep it - or import a MIDI file to watch it played."))
+                                           description: Text("Record something, then tap Save to keep it - or import a voice memo or a MIDI file to watch it played."))
                 } else {
                     HStack(spacing: 0) {
                         list
@@ -52,8 +65,20 @@ struct RecordingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Import") { isImporting = true }
-                        .accessibilityHint("Opens a MIDI file to play on the keyboard")
+                    Menu("Import") {
+                        Button {
+                            isImporting = true
+                        } label: {
+                            Label("From Files…", systemImage: "folder")
+                        }
+                        Button {
+                            isExplainingVoiceMemos = true
+                        } label: {
+                            Label("From Voice Memos…", systemImage: "waveform")
+                        }
+                    }
+                    .disabled(isListening)
+                    .accessibilityHint("Brings in voice memos or a MIDI file")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { close() }
@@ -65,9 +90,23 @@ struct RecordingsView: View {
         .pageSizedOnPad()
         .onAppear(perform: reload)
         .onDisappear { if !handedOff { conductor.stopPlayback() } }
+        .overlay {
+            if isListening { ListeningBadge() }
+        }
         .fileImporter(isPresented: $isImporting,
-                      allowedContentTypes: [.midi],
-                      onCompletion: importMIDI)
+                      allowedContentTypes: [.audio, .midi],
+                      onCompletion: importFile)
+        // Voice Memos keeps its recordings to itself - no other app can list
+        // them, and they aren't in Files - so the way in starts over there.
+        .alert("Import from Voice Memos", isPresented: $isExplainingVoiceMemos) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("""
+            Voice Memos doesn't let other apps see its recordings, so they can't be listed here. \
+            Instead, in Voice Memos tap a recording, then ⋯ → Share → GoPiano. GoPiano finds the \
+            melody and adds it to Melodies.
+            """)
+        }
         .alert("Rename", isPresented: Binding(get: { renaming != nil },
                                               set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $newName)
@@ -156,15 +195,33 @@ struct RecordingsView: View {
     }
 
     private func playButton(for recording: Recording, showingLabels: Bool) -> some View {
-        Button {
-            togglePlay(recording)
-        } label: {
-            actionLabel(conductor.isPlaying ? "Stop" : "Play",
-                        systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
-                        showingLabels: showingLabels)
-                .frame(maxWidth: .infinity)
+        HStack(spacing: 10) {
+            Button {
+                togglePlay(recording)
+            } label: {
+                actionLabel(conductor.isPlaying ? "Stop" : "Play",
+                            systemImage: conductor.isPlaying ? "stop.fill" : "play.fill",
+                            showingLabels: showingLabels)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
+            // A sung melody plays on whichever instrument is chosen, or in
+            // the voice that sang it: the same list as the control bar's.
+            if RecordingStore.shared.score(for: recording)?.isSung == true {
+                Menu {
+                    InstrumentPicker()
+                } label: {
+                    let listening = conductor.isListening
+                    actionLabel(listening ? "Voice" : conductor.instrument.name,
+                                systemImage: listening ? "mic" : conductor.instrument.symbol,
+                                showingLabels: showingLabels)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!conductor.isInstrumentLoaded)
+                .accessibilityLabel("Play on")
+            }
         }
-        .buttonStyle(.borderedProminent)
     }
 
     /// Everything but Play: sharing, exports, and the rest.
@@ -381,17 +438,43 @@ struct RecordingsView: View {
         dismiss()
     }
 
-    private func importMIDI(_ result: Result<URL, any Error>) {
+    private func importFile(_ result: Result<URL, any Error>) {
         do {
             let url = try result.get()
+            guard VoiceMemoImport.isMIDI(url) else { return importMemo(url) }
             let score = try MIDIImport.score(from: url)
-            conductor.stopPlayback()
-            handedOff = true
-            onImport(score, url.deletingPathExtension().lastPathComponent)
-            dismiss()
+            hand(.score(score, name: url.deletingPathExtension().lastPathComponent))
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Listens to a voice memo off the main thread - a few seconds for a
+    /// long one - then plays it on the keyboard. It is in the library too, so
+    /// it's there to come back to.
+    private func importMemo(_ url: URL) {
+        conductor.stopPlayback()
+        isListening = true
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try VoiceMemoImport.importMemo(at: url) }
+            await MainActor.run {
+                isListening = false
+                switch result {
+                case .success(let recording):
+                    hand(.recording(recording))
+                case .failure(let error):
+                    recordings = RecordingStore.shared.all()
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func hand(_ melody: ImportedMelody) {
+        conductor.stopPlayback()
+        handedOff = true
+        onImport(melody)
+        dismiss()
     }
 
     private func format(_ seconds: TimeInterval) -> String {
@@ -421,6 +504,14 @@ struct ExportShareSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        if file.kind == .sheetMusic {
+            SheetMusicViewer(url: file.url)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         NavigationStack {
             VStack(spacing: 20) {
                 Image(systemName: icon).font(.system(size: 44)).foregroundStyle(.secondary)
@@ -474,6 +565,60 @@ struct ExportShareSheet: View {
     }
 }
 
+/// The sheet music itself, every page, before it goes anywhere: read it
+/// through, zoom in on a bar, then share or print it from here.
+struct SheetMusicViewer: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    private var name: String { url.deletingPathExtension().lastPathComponent }
+
+    var body: some View {
+        NavigationStack {
+            PDFPages(url: url)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle(name)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        ShareLink(item: url, preview: SharePreview(name)) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        .pageSizedOnPad()
+    }
+}
+
+/// A PDF's pages one above the other, fitted to the width and pinch to zoom.
+private struct PDFPages: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.displaysPageBreaks = true
+        view.pageShadowsEnabled = true
+        view.backgroundColor = .secondarySystemBackground
+        view.document = PDFDocument(url: url)
+        view.autoScales = true
+        return view
+    }
+
+    func updateUIView(_ view: PDFView, context: Context) {
+        if view.document?.documentURL != url { view.document = PDFDocument(url: url) }
+        // Fit the page to the width as the sheet settles or the device turns.
+        view.minScaleFactor = view.scaleFactorForSizeToFit
+        view.autoScales = true
+    }
+}
+
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
 }
@@ -488,5 +633,19 @@ private extension View {
         } else {
             self
         }
+    }
+}
+
+/// Shown while a voice memo is listened to for its notes.
+struct ListeningBadge: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+            Text("Listening for the melody…")
+                .font(.callout)
+        }
+        .padding(20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
     }
 }

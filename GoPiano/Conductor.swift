@@ -80,8 +80,16 @@ final class Conductor {
     /// room above still sets how dry the piano is.
     private let hall: Reverb
     private let hallSend: Mixer
-    /// The piano and both reverbs: what's recorded.
+    /// The piano and both reverbs.
     private let instrumentOut: Mixer
+    /// The microphone, connected only while listening. It goes into takes
+    /// but never to the speaker, where it would feed straight back in.
+    private let voice = VoiceNode()
+    /// What's recorded: the instrument, and the voice singing along.
+    private let takeMix: Mixer
+    /// Carries the take mix to the output at no volume, so the engine pulls
+    /// it - and the recorder hears it - without the voice being played out.
+    private let takeSend: Mixer
     private var hallFade: Timer?
     private let player = AudioPlayer()
     /// The metronome. It joins the graph after the reverb and away from the
@@ -116,7 +124,11 @@ final class Conductor {
     private(set) var startupError: String?
 
     /// What the keyboard should show as held down, whoever is holding it.
-    var highlightedNotes: Set<UInt8> { activeNotes.union(replayNotes) }
+    var highlightedNotes: Set<UInt8> {
+        var notes = activeNotes.union(replayNotes)
+        if let sungNote { notes.insert(sungNote) }
+        return notes
+    }
 
     /// Sustain holds notes on after the key is released, like the right pedal.
     private(set) var isSustaining = false
@@ -164,6 +176,8 @@ final class Conductor {
     private var sequenceIndex = 0
     private var sequenceStart: TimeInterval = 0
     private var sequenceTimer: Timer?
+    /// Whether the sequencer, rather than the recording, is what's playing.
+    @ObservationIgnored private var isPerformingNotes = false
     /// Notes the sequencer has sounded and not yet released, counted, because a
     /// file can hold the same note twice at once; it only goes quiet when the
     /// last of them ends.
@@ -182,7 +196,7 @@ final class Conductor {
         case .countingIn:
             return 0
         case .playing:
-            let position = hasSequence ? now - sequenceStart : player.currentTime
+            let position = isPerformingNotes ? now - sequenceStart : player.currentTime
             return min(max(0, position), finishedTakeDuration)
         case .idle:
             return finishedTakeDuration
@@ -198,7 +212,10 @@ final class Conductor {
         hallSend = Mixer(hall)
         hallSend.volume = 0
         instrumentOut = Mixer(reverb, hallSend)
-        mainBus = Mixer(instrumentOut, player, click)
+        takeMix = Mixer(instrumentOut, voice)
+        takeSend = Mixer(takeMix)
+        takeSend.volume = 0
+        mainBus = Mixer(instrumentOut, player, click, takeSend)
         engine.output = mainBus
 
         player.isLooping = false
@@ -278,7 +295,7 @@ final class Conductor {
                 // after the swap.
                 applySamplerParameters(for: choice)
                 let samples = try loadInstrument(choice)
-                outcome = .success((samples, try NodeRecorder(node: instrumentOut), makeClickSounds()))
+                outcome = .success((samples, try NodeRecorder(node: takeMix), makeClickSounds()))
             } catch {
                 outcome = .failure(error)
             }
@@ -350,6 +367,7 @@ final class Conductor {
 
     private func handleInterruptionBegan() {
         allNotesOff()
+        sungNote = nil
         player.stop()
         stopReplay()
         stopSequence()
@@ -362,7 +380,6 @@ final class Conductor {
     func resumeAudio() {
         guard isInstrumentLoaded else { return }
         guard !engine.avEngine.isRunning else { return }
-        let samples = loadedSamples
         let pedal = isSustaining
         let choice = instrument
         // Off the main thread for the same reason as starting up. Several
@@ -373,21 +390,38 @@ final class Conductor {
             do {
                 try configureSession()
                 try engine.start()
-                if let samples {
-                    // Same ordering as at startup, and for the same reason: the
-                    // swap copies these across from the current sampler and
-                    // rejects writes made straight after it.
-                    applySamplerParameters(for: choice)
-                    sampler.update(data: samples)
-                }
-                // The sampler comes back with the pedal up, while the control
-                // went on showing it down - so sustain looked on, did nothing,
-                // and had to be pressed twice to come back.
-                sampler.sustainPedal(pedalDown: pedal)
+                restoreInstrument(choice, pedal: pedal)
+                if let microphone, !microphone.isRunning { try microphone.start() }
             } catch {
                 Log("Could not resume audio: \(error)")
             }
         }
+    }
+
+    /// Hands the instrument to a restarted engine, which may be running at a
+    /// new sample rate. On the audio queue.
+    ///
+    /// Always a freshly read instrument, never the one already playing:
+    /// handing the sampler its current data again re-initialises the sampler
+    /// the audio thread is playing from, and the next event to reach it - the
+    /// pedal, restored just below - crashed the app.
+    private func restoreInstrument(_ choice: Instrument, pedal: Bool) {
+        do {
+            // Same ordering as at startup, and for the same reason: the swap
+            // copies these across from the current sampler and rejects writes
+            // made straight after it.
+            applySamplerParameters(for: choice)
+            let samples = try loadInstrument(choice)
+            DispatchQueue.main.async { [self] in
+                if instrument == choice { loadedSamples = samples }
+            }
+        } catch {
+            Log("Could not reload \(choice.name): \(error)")
+        }
+        // The sampler comes back with the pedal up, while the control went on
+        // showing it down - so sustain looked on, did nothing, and had to be
+        // pressed twice to come back.
+        sampler.sustainPedal(pedalDown: pedal)
     }
 
     /// Volume and envelope for the sampler. Always set *before* sampler data
@@ -399,11 +433,24 @@ final class Conductor {
         sampler.releaseDuration = instrument.release
     }
 
+    /// Whether the session is set up for the microphone. Read and written on
+    /// the audio queue only.
+    @ObservationIgnored private var sessionListens = false
+
     private func configureSession() throws {
         #if os(iOS)
-        // Playback only: the recorder taps a node inside the graph rather than
-        // the microphone, so the app never needs record permission.
-        try Settings.session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        if sessionListens {
+            // Listening: the microphone in, and the instrument still out of
+            // the speaker rather than the earpiece a call would use. Bluetooth
+            // headphones keep their full-quality playback; the voice comes in
+            // through the device's own microphone.
+            try Settings.session.setCategory(.playAndRecord, mode: .default,
+                                             options: [.defaultToSpeaker, .allowBluetoothA2DP, .mixWithOthers])
+        } else {
+            // Otherwise playback only: the recorder taps a node inside the
+            // graph, so nothing needs the microphone.
+            try Settings.session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        }
         // Asked for before the session is activated, which is when the
         // preference is read. Left to the system the buffer can run to 20ms or
         // more: unremarkable for playing a file back, but on an instrument it
@@ -584,6 +631,358 @@ final class Conductor {
         activeNotes.removeAll()
     }
 
+    // MARK: - Listening
+
+    /// Whether the microphone is on, following a voice.
+    private(set) var isListening = false
+    /// The note being sung, lit on its key.
+    private(set) var sungNote: UInt8?
+    /// When the sung note began, and whether it has lasted long enough to be
+    /// written down.
+    @ObservationIgnored private var sungSince: TimeInterval = 0
+    @ObservationIgnored private var sungIsWritten = false
+    /// Why listening couldn't start, to tell the player.
+    var listeningError: String?
+
+    func toggleListening() {
+        if isListening { stopListening() } else { startListening() }
+    }
+
+    /// Turns on the microphone. Restarting the engine would cut a take short,
+    /// so it waits until nothing is being recorded.
+    private func startListening() {
+        guard isInstrumentLoaded, !isRecording, !isListening else { return }
+        // Already allowed: on at once, so the button answers the tap.
+        if AVAudioApplication.shared.recordPermission == .granted {
+            beginListening()
+            return
+        }
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard granted else {
+                    self.listeningError = "GoPiano needs the microphone to hear your voice. You can allow it in Settings, under Privacy & Security."
+                    return
+                }
+                self.beginListening()
+            }
+        }
+    }
+
+    /// The microphone's own engine, while listening. Only ever touched on the
+    /// audio queue.
+    @ObservationIgnored private var microphone: AVAudioEngine?
+    /// The metronome while listening: played by the microphone's engine, so
+    /// its echo canceller knows the click and takes it back out of what the
+    /// microphone hears. Nil when not listening, or when the device has no
+    /// echo cancellation, and the instrument engine's click is used instead.
+    @ObservationIgnored private var microphoneClick: AVAudioPlayerNode?
+    private var clickPlayer: AVAudioPlayerNode { microphoneClick ?? click.player }
+
+    /// What's listening, so the metronome can tell it to filter out its click.
+    @ObservationIgnored private var voiceListener: VoiceListener?
+    @ObservationIgnored private var voiceFeed: VoiceFeed?
+
+    /// Whether the microphone should filter out the click: while it plays.
+    private func filterClick(_ on: Bool) {
+        voiceListener?.removesClick = on
+        voiceFeed?.removesClick = on
+    }
+
+    private func beginListening() {
+        guard !isListening, !isRecording else { return }
+        isListening = true
+        stopPlayback()
+        allNotesOff()
+        let choice = instrument, pedal = isSustaining
+        let listener = VoiceListener { [weak self] event in self?.heard(event) }
+        let feed = VoiceFeed(ring: voice.ring)
+        voiceListener = listener
+        voiceFeed = feed
+        filterClick(clickTimer != nil)
+        let sounds = clickSounds
+        audioQueue.async { [self] in
+            // The session's category can only change with the engine stopped.
+            engine.stop()
+            sessionListens = true
+            do {
+                try configureSession()
+                try engine.start()
+                restoreInstrument(choice, pedal: pedal)
+
+                // The microphone gets an engine of its own. Once an engine has
+                // used its input it expects one for good, and on a device it
+                // then fails to start again under playback alone - so the
+                // instruments went silent after singing, until a relaunch.
+                voice.ring.clear()
+                let opened = try openMicrophone(cancellingEcho: true, listener: listener, feed: feed, clicks: sounds)
+                self.microphone = opened.engine
+                DispatchQueue.main.async { [self] in microphoneClick = opened.clicks }
+
+                // Echo cancellation isn't everywhere - the Simulator, some
+                // routes - and where it fails the microphone can start but
+                // deliver nothing. If nothing has arrived after a moment, it
+                // opens again without it, so singing never just stops working.
+                audioQueue.asyncAfter(deadline: .now() + 0.8) { [self] in
+                    guard self.microphone === opened.engine,
+                          !opened.hearing.isWorking(rate: opened.rate) else { return }
+                    Log("No sound with echo cancellation; listening without it")
+                    closeMicrophone()
+                    do {
+                        let plain = try openMicrophone(cancellingEcho: false, listener: listener, feed: feed, clicks: nil)
+                        self.microphone = plain.engine
+                    } catch {
+                        Log("Could not start listening: \(error)")
+                    }
+                }
+            } catch {
+                Log("Could not start listening: \(error)")
+                closeMicrophone()
+                sessionListens = false
+                engine.stop()
+                try? configureSession()
+                try? engine.start()
+                restoreInstrument(choice, pedal: pedal)
+                DispatchQueue.main.async { [self] in
+                    isListening = false
+                    listeningError = (error as? LocalizedError)?.errorDescription
+                        ?? "The microphone couldn't be started."
+                }
+            }
+        }
+    }
+
+    /// How much the microphone's tap has delivered, and whether any of it
+    /// was more than digital silence - which a working microphone never gives.
+    final class Hearing: @unchecked Sendable {
+        var frames = 0
+        var anySound = false
+        func isWorking(rate: Double) -> Bool { anySound && Double(frames) >= rate * 0.4 }
+    }
+
+    /// Starts an engine for the microphone, with or without echo cancellation,
+    /// feeding the pitch tracker and the voice for takes. With echo
+    /// cancellation it also gets a player for the metronome, since the
+    /// canceller can only take out what its own engine plays. On the audio
+    /// queue.
+    private func openMicrophone(cancellingEcho: Bool, listener: VoiceListener, feed: VoiceFeed,
+                                clicks sounds: (accent: AVAudioPCMBuffer, beat: AVAudioPCMBuffer)?) throws
+        -> (engine: AVAudioEngine, clicks: AVAudioPlayerNode?, hearing: Hearing, rate: Double) {
+        let microphone = AVAudioEngine()
+        let input = microphone.inputNode
+
+        // Echo cancellation - the voice processing calls use - so that what
+        // this engine plays is taken back out of what its microphone hears.
+        // Over a phone's speaker the metronome's click is loud and distorted,
+        // a few millimetres from the microphone: it went into takes, and was
+        // even heard as a note. Filtering its pitches wasn't enough. The
+        // instruments, on the other engine, aren't ducked for it.
+        var clicks: AVAudioPlayerNode?
+        if cancellingEcho {
+            do {
+                try input.setVoiceProcessingEnabled(true)
+                input.voiceProcessingOtherAudioDuckingConfiguration =
+                    .init(enableAdvancedDucking: false, duckingLevel: .min)
+                if let sounds {
+                    let player = AVAudioPlayerNode()
+                    microphone.attach(player)
+                    microphone.connect(player, to: microphone.mainMixerNode, format: sounds.accent.format)
+                    clicks = player
+                }
+            } catch {
+                Log("No echo cancellation: \(error)")
+            }
+        }
+
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw ListeningError.noMicrophone
+        }
+        let hearing = Hearing()
+        // Pitch from the tap, which arrives in tenth-of-a-second pieces: fine
+        // for following a voice, and off the audio thread.
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, when in
+            hearing.frames += Int(buffer.frameLength)
+            if !hearing.anySound, let data = buffer.floatChannelData?[0] {
+                for index in 0..<Int(buffer.frameLength) where data[index] != 0 {
+                    hearing.anySound = true
+                    break
+                }
+            }
+            listener.take(buffer, at: when)
+        }
+        // The voice for takes straight from the audio thread, a few
+        // milliseconds at a time, so it stays in time with the keys.
+        let rate = format.sampleRate
+        let sink = AVAudioSinkNode { _, frameCount, audioBufferList in
+            let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: audioBufferList))
+            if let data = buffers.first?.mData?.assumingMemoryBound(to: Float.self) {
+                feed.take(data, count: Int(frameCount), rate: rate)
+            }
+            return noErr
+        }
+        microphone.attach(sink)
+        microphone.connect(input, to: sink, format: format)
+        try microphone.start()
+        return (microphone, clicks, hearing, format.sampleRate)
+    }
+
+    /// Stops and lets go of the microphone's engine. On the audio queue.
+    private func closeMicrophone() {
+        if let microphone {
+            microphone.inputNode.removeTap(onBus: 0)
+            microphone.stop()
+        }
+        microphone = nil
+        voice.ring.clear()
+        DispatchQueue.main.async { [self] in microphoneClick = nil }
+    }
+
+    private func stopListening() {
+        guard isListening, !isRecording else { return }
+        isListening = false
+        if let note = sungNote { endSung(note, at: now) }
+        let choice = instrument, pedal = isSustaining
+        audioQueue.async { [self] in
+            closeMicrophone()
+            // Back to playback alone, so the system's microphone indicator
+            // goes out and audio sounds as it did before.
+            engine.stop()
+            sessionListens = false
+            do {
+                try configureSession()
+                try engine.start()
+                restoreInstrument(choice, pedal: pedal)
+            } catch {
+                Log("Could not stop listening: \(error)")
+            }
+        }
+    }
+
+    enum ListeningError: LocalizedError {
+        case noMicrophone
+        var errorDescription: String? { "No microphone is available." }
+    }
+
+    /// A note heard in the voice. It lights its key and goes on the page and
+    /// into a take just as a played note does - but it isn't sounded, since
+    /// the singer is already making it, and the microphone would only hear
+    /// the instrument and chase it.
+    private func heard(_ event: NoteSplitter.Event) {
+        // Playing back, the voice in the take is coming out of the speaker:
+        // the replay is already lighting those keys.
+        guard isListening, transport != .playing else { return }
+        switch event {
+        case .began(let note, let time):
+            // The click is a high F#/G and B: whatever gets past the echo
+            // cancelling is not a note anyone sang.
+            if clickTimer != nil, note >= Self.lowestClickNote { return }
+            if let previous = sungNote { endSung(previous, at: time) }
+            sungNote = note
+            sungSince = time
+            sungIsWritten = false
+            // Lit at once, but written down only once it has lasted: a voice
+            // breaking up for an instant, or a scoop between two notes, leaves
+            // blips nobody meant as notes.
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(0, time + Self.shortestSungNote - now)) { [weak self] in
+                guard let self, self.sungNote == note, self.sungSince == time else { return }
+                self.writeSung(note, at: time)
+            }
+        case .ended(let note, let time):
+            guard sungNote == note else { return }
+            endSung(note, at: time)
+        }
+    }
+
+    private static let shortestSungNote: TimeInterval = 0.1
+    /// F#6, just under the metronome's lower tick.
+    private static let lowestClickNote: UInt8 = 90
+
+    private func writeSung(_ note: UInt8, at time: TimeInterval) {
+        sungIsWritten = true
+        let at = time - recordingStart
+        if transport == .recording {
+            scoreRecorder.noteOn(note, velocity: 90, at: max(0, at))
+        }
+        if transport == .recording, takeTempo != nil {
+            refreshLivePage()
+        } else if pageIsLive {
+            write(note, at: at)
+        }
+    }
+
+    private func endSung(_ note: UInt8, at time: TimeInterval) {
+        sungNote = nil
+        if !sungIsWritten, time - sungSince >= Self.shortestSungNote { writeSung(note, at: sungSince) }
+        guard sungIsWritten else { return }
+        sungIsWritten = false
+        // Played on the keys at the same time, the key's own release ends it.
+        guard transport == .recording, !activeNotes.contains(note) else { return }
+        scoreRecorder.noteOff(note, at: max(0, time - recordingStart))
+        if takeTempo != nil { refreshLivePage() }
+    }
+
+    // MARK: - Choosing what to play
+
+    /// What's being played: one of the instruments on the keys, or a voice
+    /// into the microphone. One list, so singing is just another way to play.
+    enum Choice: Hashable {
+        case instrument(Instrument)
+        case voice
+    }
+
+    var choice: Choice { isListening ? .voice : .instrument(instrument) }
+
+    /// Changes what's played. A melody that's playing carries on from the
+    /// same moment in its new sound - a sung idea heard on guitar, then back
+    /// in the voice that sang it.
+    func choose(_ choice: Choice) {
+        guard choice != self.choice else { return }
+        // The microphone restarts the engine, which would cut a take short;
+        // swapping one instrument for another mid-take is fine.
+        if isRecording, choice == .voice || isListening { return }
+        let resumeAt: TimeInterval? = transport == .playing && hasRecording ? readoutTime : nil
+        if resumeAt != nil { stopPlayback() }
+        switch choice {
+        case .voice:
+            startListening()
+        case .instrument(let instrument):
+            if isListening { stopListening() }
+            setInstrument(instrument)
+        }
+        // After the engine and samples are ready: the audio queue runs in
+        // order, so this lands behind them.
+        if let resumeAt {
+            audioQueue.async {
+                DispatchQueue.main.async { [weak self] in self?.resumePlayback(at: resumeAt) }
+            }
+        }
+    }
+
+    /// A sung melody - a take sung into the microphone, or an imported voice
+    /// memo - plays its notes on the chosen instrument, and in the voice
+    /// itself only when Voice is chosen. Takes played on the keys always play
+    /// as they were recorded.
+    var playsSungNotes: Bool {
+        hasRecording && currentScore.isSung == true && !currentScore.isEmpty && !isListening
+    }
+
+    private func resumePlayback(at position: TimeInterval) {
+        guard transport == .idle, hasRecording else { return }
+        if playsSungNotes {
+            startNotes(from: position)
+        } else {
+            player.play(from: position)
+            transport = .playing
+            startReplay()
+        }
+    }
+
+    private func startNotes(from position: TimeInterval) {
+        sequence = Self.events(for: currentScore)
+        startSequence(from: position)
+    }
+
     // MARK: - Transport
 
     func toggleRecording() {
@@ -667,6 +1066,8 @@ final class Conductor {
         if let tempo = takeTempo, let signature = takeSignature {
             currentScore = Self.measured(currentScore, tempo: tempo, signature: signature)
         }
+        // Sung with the microphone on: the voice is in the recording.
+        if isListening, !currentScore.isEmpty { currentScore.isSung = true }
         takeTempo = nil
         takeScore = currentScore
         // The page now is the take, timed from its start so a replay can
@@ -691,7 +1092,9 @@ final class Conductor {
             break
         case .idle:
             if hasSequence {
-                startSequence()
+                startSequence(from: 0)
+            } else if playsSungNotes {
+                startNotes(from: 0)
             } else if hasRecording {
                 player.play()
                 transport = .playing
@@ -710,6 +1113,8 @@ final class Conductor {
     }
 
     private func playbackFinished() {
+        // Stopped to hand over to the instrument, not finished.
+        guard !isPerformingNotes else { return }
         if transport == .playing { transport = .idle }
         stopReplay()
     }
@@ -854,12 +1259,17 @@ final class Conductor {
             buffer.frameLength = frames
             for frame in 0..<Int(frames) {
                 let time = Double(frame) / rate
-                let sample = Float(sin(2 * .pi * pitch * time) * exp(-time * 70)) * level
+                // A 2 ms rise: an instant start is a snap across every
+                // frequency, which the filters that keep the click out of
+                // the microphone couldn't catch.
+                let rise = min(1, time / 0.002)
+                let sample = Float(sin(2 * .pi * pitch * time) * exp(-time * 70) * rise) * level
                 for channel in 0..<Int(format.channelCount) { channels[channel][frame] = sample }
             }
             return buffer
         }
-        guard let accent = tick(pitch: 2000, level: 0.55), let beat = tick(pitch: 1500, level: 0.35) else {
+        guard let accent = tick(pitch: Metronome.accentPitch, level: 0.55),
+              let beat = tick(pitch: Metronome.beatPitch, level: 0.35) else {
             return nil
         }
         return (accent, beat)
@@ -871,7 +1281,8 @@ final class Conductor {
         clickInterval = interval
         clickBeatsPerBar = beatsPerBar
         clickNext = 0
-        click.player.play()
+        clickPlayer.play()
+        filterClick(true)
         scheduleClicks()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.scheduleClicks() }
         RunLoop.main.add(timer, forMode: .common)
@@ -885,7 +1296,7 @@ final class Conductor {
         while clickOrigin + Double(clickNext) * clickInterval < now + 0.4 {
             let at = clickOrigin + Double(clickNext) * clickInterval
             let sound = clickNext % clickBeatsPerBar == 0 ? sounds.accent : sounds.beat
-            click.player.scheduleBuffer(sound, at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
+            clickPlayer.scheduleBuffer(sound, at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
             clickNext += 1
         }
         if transport == .countingIn {
@@ -898,9 +1309,15 @@ final class Conductor {
     private func stopClicks() {
         clickTimer?.invalidate()
         clickTimer = nil
+        // The last click is still ringing in the room for a moment.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, self.clickTimer == nil else { return }
+            self.filterClick(false)
+        }
         downbeatWork?.cancel()
         downbeatWork = nil
         click.player.stop()
+        microphoneClick?.stop()
     }
 
     /// The take so far, written in bars: rebuilt as each note starts and ends.
@@ -958,10 +1375,22 @@ final class Conductor {
         return events.sorted { ($0.time, $0.isOff ? 0 : 1) < ($1.time, $1.isOff ? 0 : 1) }
     }
 
-    private func startSequence() {
-        guard hasSequence, !sequence.isEmpty else { return }
+    /// Performs `sequence` from `position` seconds in. Notes already sounding
+    /// at that moment are struck, so starting partway through a held note
+    /// doesn't leave a gap until the next one.
+    private func startSequence(from position: TimeInterval) {
+        guard !sequence.isEmpty else { return }
         stopSequence()
-        sequenceStart = now
+        isPerformingNotes = true
+        sequenceStart = now - position
+        sequenceIndex = sequence.firstIndex { $0.time >= position } ?? sequence.count
+        if position > 0 {
+            for span in currentScore.spans where span.start < position && span.end > position {
+                sampler.play(noteNumber: span.note, velocity: span.velocity)
+                sequencedNotes[span.note, default: 0] += 1
+            }
+            replayNotes = Set(sequencedNotes.keys)
+        }
         transport = .playing
         // Common mode, so it keeps time while the user is touching the screen.
         // Called directly rather than through a Task: a hop to the main actor
@@ -976,7 +1405,7 @@ final class Conductor {
     }
 
     private func tickSequence() {
-        guard transport == .playing, hasSequence else { stopSequence(); return }
+        guard transport == .playing, isPerformingNotes else { stopSequence(); return }
         let elapsed = now - sequenceStart
         var keysChanged = false
 
@@ -1018,6 +1447,7 @@ final class Conductor {
         for note in sequencedNotes.keys { sampler.stop(noteNumber: note) }
         sequencedNotes.removeAll()
         sequenceIndex = 0
+        isPerformingNotes = false
         if !replayNotes.isEmpty { replayNotes = [] }
     }
 
@@ -1033,6 +1463,33 @@ final class Conductor {
         hasUnsavedTake = false
         return saved
     }
+}
+
+/// The voice's way into takes: plays whatever the microphone's engine has
+/// handed across, and silence otherwise.
+final class VoiceNode: Node {
+    let ring = VoiceRing()
+    private let source: AVAudioSourceNode
+
+    init() {
+        let ring = ring
+        source = AVAudioSourceNode(format: VoiceRing.format) { _, _, frameCount, audioBufferList in
+            let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+            let frames = Int(frameCount)
+            guard let first = buffers.first?.mData?.assumingMemoryBound(to: Float.self) else { return noErr }
+            ring.read(into: first, count: frames)
+            for buffer in buffers.dropFirst() {
+                buffer.mData?.assumingMemoryBound(to: Float.self).update(from: first, count: frames)
+            }
+            return noErr
+        }
+    }
+
+    var avAudioNode: AVAudioNode { source }
+    var connections: [Node] { [] }
+    /// Connected at its own rate, so the engine converts it rather than
+    /// playing it at the wrong speed.
+    var outputFormat: AVAudioFormat { VoiceRing.format }
 }
 
 /// The metronome's voice in the audio graph: a plain player node, wrapped so
