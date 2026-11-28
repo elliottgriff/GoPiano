@@ -36,6 +36,10 @@ struct ContentView: View {
     /// Set while a voice memo sent from another app is listened to.
     @State private var isListeningToMemo = false
     @State private var openError: String?
+    /// The ring that pulses out from the record button on each beat, when
+    /// the click is shown rather than heard.
+    @State private var beatRingScale: CGFloat = 1
+    @State private var beatRingOpacity: Double = 0
     @State private var isConfirmingReset = false
     @State private var isExplainingImportSave = false
     /// The name of the imported song on the keyboard, for its sheet music.
@@ -114,6 +118,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: conductor.sungNote) { _, note in follow(note) }
+        // Said once, as the click goes quiet, so its silence isn't taken for
+        // a fault.
+        .onChange(of: conductor.clickIsShown) { _, shown in
+            // Short, so the readout keeps its width and nothing on the bar moves.
+            if shown { flash("Click off", for: 2.5) }
+        }
         .alert("Can't Listen",
                isPresented: Binding(get: { conductor.listeningError != nil },
                                     set: { if !$0 { conductor.listeningError = nil } })) {
@@ -479,9 +489,35 @@ struct ContentView: View {
                                                Color(red: 0.68, green: 0.10, blue: 0.10)]))
         .shadow(color: .red.opacity(recording ? 0.7 : 0), radius: 8)
         .animation(.easeInOut(duration: 0.2), value: recording)
+        // The beat, when singing over the speaker has silenced the click: a
+        // ring pulses out on every beat, bigger on the first of the bar - in
+        // the record button's red, which shows on the ivory bar and the black.
+        .background {
+            Circle()
+                .stroke(Color(red: 0.93, green: 0.25, blue: 0.22),
+                        lineWidth: conductor.shownBeatIsAccent ? 5 : 3.5)
+                .scaleEffect(beatRingScale)
+                .opacity(beatRingOpacity)
+                .allowsHitTesting(false)
+        }
+        .onChange(of: conductor.shownBeat) { _, _ in pulseBeat() }
         .disabled(!loaded)
         .opacity(loaded ? 1 : 0.4)
         .accessibilityLabel(recording ? "Stop recording" : "Record")
+    }
+
+    private func pulseBeat() {
+        let accent = conductor.shownBeatIsAccent
+        var start = Transaction()
+        start.disablesAnimations = true
+        withTransaction(start) {
+            beatRingScale = 1
+            beatRingOpacity = accent ? 1 : 0.75
+        }
+        withAnimation(.easeOut(duration: 0.45)) {
+            beatRingScale = accent ? 1.7 : 1.45
+            beatRingOpacity = 0
+        }
     }
 
     /// Words rather than an icon: the download-arrow glyph this used to be
@@ -509,8 +545,10 @@ struct ContentView: View {
                              ? Color(red: 1.0, green: 0.38, blue: 0.33)
                              : Color(white: 0.92))
             .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(minWidth: 80)
+            .minimumScaleFactor(0.5)
+            // A fixed width, so a message - "Click off", a melody's name -
+            // shrinks to fit rather than shoving the rest of the bar along.
+            .frame(width: 92)
             .padding(.vertical, (unit - 22) / 2)
             .padding(.horizontal, 8)
             .background {
