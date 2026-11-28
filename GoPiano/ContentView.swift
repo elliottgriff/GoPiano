@@ -149,7 +149,7 @@ struct ContentView: View {
             Button("Discard", role: .destructive) { resetTake() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It hasn't been saved, so it can't be got back.")
+            Text("It hasn't been saved, so you can't get it back.")
         }
         .alert("Imported Songs Can't Be Saved Yet", isPresented: $isExplainingImportSave) {
             // Its notes are all an import has, which is exactly what sheet
