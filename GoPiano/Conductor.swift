@@ -244,8 +244,7 @@ final class Conductor {
     /// at launch, so the keys stay responsive while a new set is read.
     func setInstrument(_ choice: Instrument) {
         guard choice != instrument else { return }
-        instrument = choice
-        UserDefaults.standard.set(choice.rawValue, forKey: Self.instrumentKey)
+        adoptInstrument(choice)
         guard isInstrumentLoaded else { return }
         allNotesOff()
         let pedal = isSustaining
@@ -262,6 +261,13 @@ final class Conductor {
                 Log("Could not load \(choice.name): \(error)")
             }
         }
+    }
+
+    /// Makes `choice` the instrument without loading it: for when the engine
+    /// is about to restart, which loads whatever the instrument is by then.
+    private func adoptInstrument(_ choice: Instrument) {
+        instrument = choice
+        UserDefaults.standard.set(choice.rawValue, forKey: Self.instrumentKey)
     }
 
     func start() {
@@ -366,6 +372,7 @@ final class Conductor {
     }
 
     private func handleInterruptionBegan() {
+        pendingResume = nil
         allNotesOff()
         sungNote = nil
         player.stop()
@@ -649,22 +656,26 @@ final class Conductor {
     }
 
     /// Turns on the microphone. Restarting the engine would cut a take short,
-    /// so it waits until nothing is being recorded.
-    private func startListening() {
-        guard isInstrumentLoaded, !isRecording, !isListening else { return }
+    /// so it waits until nothing is being recorded. `then` runs once listening
+    /// is under way, or has been refused - the first time, only after the
+    /// permission prompt has been answered.
+    private func startListening(then done: (() -> Void)? = nil) {
+        guard isInstrumentLoaded, !isRecording, !isListening else { done?(); return }
         // Already allowed: on at once, so the button answers the tap.
         if AVAudioApplication.shared.recordPermission == .granted {
             beginListening()
+            done?()
             return
         }
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
-                guard granted else {
+                if granted {
+                    self.beginListening()
+                } else {
                     self.listeningError = "GoPiano needs the microphone to hear your voice. You can allow it in Settings, under Privacy & Security."
-                    return
                 }
-                self.beginListening()
+                done?()
             }
         }
     }
@@ -685,7 +696,7 @@ final class Conductor {
     private func beginListening() {
         guard !isListening, !isRecording else { return }
         isListening = true
-        stopPlayback()
+        haltPlayback()
         allNotesOff()
         let choice = instrument, pedal = isSustaining
         let listener = VoiceListener { [weak self] event in self?.heard(event) }
@@ -885,22 +896,52 @@ final class Conductor {
         // The microphone restarts the engine, which would cut a take short;
         // swapping one instrument for another mid-take is fine.
         if isRecording, choice == .voice || isListening { return }
-        let resumeAt: TimeInterval? = transport == .playing && hasRecording ? readoutTime : nil
-        if resumeAt != nil { stopPlayback() }
-        switch choice {
-        case .voice:
-            startListening()
-        case .instrument(let instrument):
-            if isListening { stopListening() }
-            setInstrument(instrument)
-        }
+        // Chosen again before the last choice was ready to play: that
+        // choice's moment carries over, so Voice, guitar, Voice in quick
+        // succession still ends up playing rather than stopped.
+        pendingResume = transport == .playing && canPlay ? readoutTime : pendingResume
+        resumeGeneration += 1
+        let generation = resumeGeneration
+        // Stopped before the samples are swapped or the engine restarts,
+        // rather than left playing through it.
+        if transport == .playing { haltPlayback() }
         // After the engine and samples are ready: the audio queue runs in
         // order, so this lands behind them.
-        if let resumeAt {
+        let resume = { [weak self] in
+            guard let self else { return }
             audioQueue.async {
-                DispatchQueue.main.async { [weak self] in self?.resumePlayback(at: resumeAt) }
+                DispatchQueue.main.async { [weak self] in self?.resumePending(generation) }
             }
         }
+        switch choice {
+        case .voice:
+            startListening(then: resume)
+        case .instrument(let instrument):
+            if isListening {
+                // Chosen first, so the engine coming back from listening loads
+                // the new instrument - once - rather than reloading the old one
+                // and then swapping it straight out again.
+                allNotesOff()
+                adoptInstrument(instrument)
+                stopListening()
+            } else {
+                setInstrument(instrument)
+            }
+            resume()
+        }
+    }
+
+    /// Where to pick the melody back up once the new sound is ready, while it
+    /// is being got ready.
+    @ObservationIgnored private var pendingResume: TimeInterval?
+    /// Bumped by every choice, so only the latest one's resume goes ahead -
+    /// an earlier one would start the player while the engine restarts.
+    @ObservationIgnored private var resumeGeneration = 0
+
+    private func resumePending(_ generation: Int) {
+        guard generation == resumeGeneration, let position = pendingResume else { return }
+        pendingResume = nil
+        resumePlayback(at: position)
     }
 
     /// A sung melody - a take sung into the microphone, or an imported voice
@@ -912,15 +953,28 @@ final class Conductor {
     }
 
     private func resumePlayback(at position: TimeInterval) {
-        guard transport == .idle, hasRecording else { return }
+        guard transport == .idle, canPlay else { return }
+        // Switched in its last moment: nothing left to play, and a player
+        // given nothing to play never says it has finished.
+        guard position < finishedTakeDuration - 0.05 else { return }
         releaseSungNote()
-        if playsSungNotes {
+        if hasSequence {
+            startSequence(from: position)
+        } else if playsSungNotes {
             startNotes(from: position)
         } else {
-            player.play(from: position)
-            transport = .playing
-            startReplay()
+            startPlayer(from: position)
         }
+    }
+
+    /// Plays the recording itself. The player refuses while the engine is
+    /// down, and then nothing would ever say it had finished - so the
+    /// transport only says playing once the player is.
+    private func startPlayer(from position: TimeInterval? = nil) {
+        if let position { player.play(from: position) } else { player.play() }
+        guard player.isPlaying else { return }
+        transport = .playing
+        startReplay()
     }
 
     private func startNotes(from position: TimeInterval) {
@@ -946,6 +1000,7 @@ final class Conductor {
         // The previous take is an uncompressed CAF of roughly 20 MB a minute.
         // Nothing else deletes it, so it goes now that it is being replaced.
         discardTakeFile()
+        pendingResume = nil
         stopReplay()
         stopSequence()
         hasSequence = false
@@ -1028,6 +1083,7 @@ final class Conductor {
     }
 
     func togglePlayback() {
+        pendingResume = nil
         switch transport {
         case .playing:
             player.stop()
@@ -1043,15 +1099,19 @@ final class Conductor {
             } else if playsSungNotes {
                 startNotes(from: 0)
             } else if hasRecording {
-                player.play()
-                transport = .playing
-                startReplay()
+                startPlayer()
             }
         }
     }
 
     /// Stops playback without toggling into it, for views that are going away.
+    /// A melody waiting to carry on in a newly chosen sound stays stopped.
     func stopPlayback() {
+        pendingResume = nil
+        haltPlayback()
+    }
+
+    private func haltPlayback() {
         guard transport == .playing else { stopReplay(); return }
         player.stop()
         stopReplay()
@@ -1069,6 +1129,7 @@ final class Conductor {
     /// Loads a saved melody so it plays - and lights up the keys - on the
     /// keyboard itself.
     func load(_ recording: Recording) throws {
+        pendingResume = nil
         player.stop()
         stopReplay()
         stopSequence()
@@ -1086,6 +1147,7 @@ final class Conductor {
     /// keyboard to perform. There is no audio behind it, so it plays through
     /// the sampler, and there is nothing to save or share as sound.
     func load(_ score: MelodyScore) {
+        pendingResume = nil
         player.stop()
         stopReplay()
         stopSequence()
@@ -1100,6 +1162,7 @@ final class Conductor {
     }
 
     func reset() {
+        pendingResume = nil
         player.stop()
         stopReplay()
         stopSequence()
