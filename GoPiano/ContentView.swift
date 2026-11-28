@@ -247,6 +247,10 @@ struct ContentView: View {
                              octaveCount: octaveCount,
                              showsLabels: showsLabels)
                     .frame(height: showsScore ? keyLength : proxy.size.height)
+                    // Dimmed like the controls until the sound is ready, as a
+                    // key pressed before then makes no sound.
+                    .opacity(conductor.isInstrumentLoaded ? 1 : 0.4)
+                    .animation(.easeOut(duration: 0.3), value: conductor.isInstrumentLoaded)
             }
         }
         .background(finish.bezel)
