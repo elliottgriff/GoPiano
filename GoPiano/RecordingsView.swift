@@ -197,6 +197,17 @@ struct RecordingsView: View {
                     }
                 }
                 .disabled(exportingVideo)
+
+                // Under the row rather than in it: the row of labelled actions
+                // only just fits an iPad's pane, and one more drops the words.
+                Button {
+                    openOnKeyboard(recording)
+                } label: {
+                    Label("Play on the Keyboard", systemImage: "arrow.down.forward.square")
+                }
+                .buttonStyle(.borderless)
+                .font(.subheadline)
+                .disabled(exportingVideo)
             }
             .padding()
         } else {
@@ -240,15 +251,6 @@ struct RecordingsView: View {
     @ViewBuilder
     private func actions(for recording: Recording, showingLabels: Bool) -> some View {
         HStack(spacing: 10) {
-            Button {
-                openOnKeyboard(recording)
-            } label: {
-                actionLabel("Keyboard", systemImage: "arrow.down.forward.square",
-                            showingLabels: showingLabels)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityLabel("Play on the keyboard")
-
             ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
                 actionLabel("Share", systemImage: "square.and.arrow.up",
                             showingLabels: showingLabels)
