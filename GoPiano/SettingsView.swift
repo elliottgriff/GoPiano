@@ -27,6 +27,11 @@ struct SettingsView: View {
     private static let ePianoURL = URL(string: "https://github.com/sfzinstruments/GregSullivan.E-Pianos")!
     private static let guitarURL = URL(string: "https://github.com/facebookincubator/Meta-open-sound")!
 
+    /// Only an iPad has music written above the keys; a phone's keys take the
+    /// whole height. So on a phone the staff is only ever in a PDF, which is
+    /// printed in black ink whatever the colours setting says.
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
     var body: some View {
         Form {
             Section {
@@ -36,12 +41,14 @@ struct SettingsView: View {
 
                 Toggle(isOn: $noteColours) {
                     Text("Note Colours")
-                    Text("Each note its own colour, on the keys and the music")
+                    Text(isPad ? "Each note its own colour, on the keys and the music"
+                               : "Each note its own colour on the keys")
                 }
 
                 Toggle(isOn: $sheetNoteNames) {
                     Text("Names on Sheet Music")
-                    Text("Each note's letter under the staff, here and in PDFs")
+                    Text(isPad ? "Each note's letter under the staff, above the keys and in PDFs"
+                               : "Each note's letter under the staff in sheet music PDFs")
                 }
 
                 // This one does need its line: "Touch Dynamics" alone doesn't
