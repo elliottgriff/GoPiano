@@ -871,7 +871,10 @@ final class Conductor {
     private func heard(_ event: NoteSplitter.Event) {
         // Playing back, the voice in the take is coming out of the speaker:
         // the replay is already lighting those keys.
-        guard isListening, transport != .playing else { return }
+        guard isListening, transport != .playing else {
+            releaseSungNote()
+            return
+        }
         switch event {
         case .began(let note, let time):
             // The click is a high F#/G and B: whatever gets past the echo
@@ -892,6 +895,14 @@ final class Conductor {
             guard sungNote == note else { return }
             endSung(note, at: time)
         }
+    }
+
+    /// Lets go of whatever was being sung - as playback takes over the keys.
+    /// Events from the microphone are ignored while something plays, so a
+    /// note heard just before (a hum in the room, say) would otherwise stay
+    /// lit right through it, and keep the keyboard where it had followed it.
+    private func releaseSungNote() {
+        if let note = sungNote { endSung(note, at: now) }
     }
 
     private static let shortestSungNote: TimeInterval = 0.1
@@ -969,6 +980,7 @@ final class Conductor {
 
     private func resumePlayback(at position: TimeInterval) {
         guard transport == .idle, hasRecording else { return }
+        releaseSungNote()
         if playsSungNotes {
             startNotes(from: position)
         } else {
@@ -1091,6 +1103,7 @@ final class Conductor {
         case .recording, .countingIn:
             break
         case .idle:
+            releaseSungNote()
             if hasSequence {
                 startSequence(from: 0)
             } else if playsSungNotes {
