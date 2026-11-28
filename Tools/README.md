@@ -51,3 +51,13 @@ to concert pitch. The Wurlitzer measured within 4 cents of its map's own tuning;
 the guitar runs a few cents sharp, as strings do.
 
 The source packs aren't kept in the repository; download them again to rebuild.
+
+## build-icon.swift
+
+Draws the app icon - five keys under the felt, A lit in its note colour and
+joined by a beam to its note above - in the three appearances iOS asks for:
+`AppIcon.png`, `AppIcon-Dark.png` and `AppIcon-Tinted.png` (grey, which the
+system colours). Colours and key proportions are the app's own, from
+`KeyboardRenderer`. Regenerate the icon set with:
+
+    swift Tools/build-icon.swift GoPiano/Assets.xcassets/AppIcon.appiconset
