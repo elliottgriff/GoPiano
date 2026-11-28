@@ -8,7 +8,11 @@
 // sing lights up and is written down. Colours and key proportions are the
 // app's own (KeyboardRenderer). Square and full-bleed: iOS rounds the corners.
 //
-// Usage: swift Tools/build-icon.swift GoPiano/Assets.xcassets/AppIcon.appiconset
+// Usage: swift Tools/build-icon.swift GoPiano/Assets.xcassets/AppIcon.appiconset \
+//            GoPiano/Assets.xcassets/Logo.imageset
+//
+// The second folder, if given, gets Logo.png: the icon at 256 px, which the
+// sheet music PDF prints beside "Made with GoPiano" at the foot of each page.
 
 import AppKit
 import CoreGraphics
@@ -184,14 +188,24 @@ func draw(_ look: Look) -> CGImage {
     return grey.makeImage()!
 }
 
-func write(_ image: CGImage, _ name: String) {
-    let url = outDirectory.appendingPathComponent(name)
+func write(_ image: CGImage, _ name: String, to directory: URL = outDirectory) {
+    let url = directory.appendingPathComponent(name)
     let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { fatalError("could not write \(url.path)") }
     print("wrote", name, image.width, "x", image.height)
 }
 
-write(draw(.light), "AppIcon.png")
+let icon = draw(.light)
+write(icon, "AppIcon.png")
 write(draw(.dark), "AppIcon-Dark.png")
 write(draw(.tinted), "AppIcon-Tinted.png")
+
+if CommandLine.arguments.count > 2 {
+    let side = 256
+    let small = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                          space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    small.interpolationQuality = .high
+    small.draw(icon, in: CGRect(x: 0, y: 0, width: side, height: side))
+    write(small.makeImage()!, "Logo.png", to: URL(fileURLWithPath: CommandLine.arguments[2]))
+}
