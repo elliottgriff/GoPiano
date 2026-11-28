@@ -60,4 +60,8 @@ joined by a beam to its note above - in the three appearances iOS asks for:
 system colours). Colours and key proportions are the app's own, from
 `KeyboardRenderer`. Regenerate the icon set with:
 
-    swift Tools/build-icon.swift GoPiano/Assets.xcassets/AppIcon.appiconset
+    swift Tools/build-icon.swift GoPiano/Assets.xcassets/AppIcon.appiconset \
+        GoPiano/Assets.xcassets/Logo.imageset
+
+The second folder gets `Logo.png`, the icon at 256 px, which the sheet music
+PDF prints beside "Made with GoPiano" at the foot of each page.
