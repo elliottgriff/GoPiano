@@ -1161,6 +1161,57 @@ final class Conductor {
         transport = .idle
     }
 
+    /// What the keyboard has loaded, kept while the library borrows the
+    /// player to audition its melodies, and handed back as it closes - so
+    /// browsing there doesn't leave the last melody looked at on the keys.
+    struct KeyboardMelody {
+        fileprivate let score: MelodyScore
+        fileprivate let page: SheetPage
+        fileprivate let pageIsLive: Bool
+        fileprivate let audio: AVAudioFile?
+        fileprivate let hasSequence: Bool
+        fileprivate let sequence: [SequencedEvent]
+        fileprivate let duration: TimeInterval
+    }
+
+    var keyboardMelody: KeyboardMelody {
+        KeyboardMelody(score: currentScore, page: page, pageIsLive: pageIsLive,
+                       audio: hasRecording ? player.file : nil,
+                       hasSequence: hasSequence, sequence: sequence,
+                       duration: finishedTakeDuration)
+    }
+
+    /// Puts back what `keyboardMelody` kept. Left alone mid-take, which owns
+    /// the page and the player for itself.
+    func restore(_ melody: KeyboardMelody) {
+        guard !isRecording else { return }
+        pendingResume = nil
+        player.stop()
+        stopReplay()
+        stopSequence()
+        transport = .idle
+        currentScore = melody.score
+        page = melody.page
+        pageIsLive = melody.pageIsLive
+        hasSequence = melody.hasSequence
+        sequence = melody.sequence
+        finishedTakeDuration = melody.duration
+        hasRecording = false
+        guard let audio = melody.audio else { return }
+        // Deleted or renamed in the library while it was open: an open file
+        // would still play, but the melody is gone, so the keys go back to an
+        // empty page rather than holding on to it.
+        if FileManager.default.fileExists(atPath: audio.url.path),
+           (try? player.load(file: audio)) != nil {
+            hasRecording = true
+        } else {
+            currentScore = MelodyScore()
+            page = .written([])
+            pageIsLive = true
+            finishedTakeDuration = 0
+        }
+    }
+
     func reset() {
         pendingResume = nil
         player.stop()
@@ -1395,7 +1446,7 @@ final class Conductor {
     /// Replay above only lights keys over a recording that makes its own sound.
     /// An imported melody has no recording, so this plays it: it walks the
     /// notes against its own clock and drives the sampler, the way fingers do.
-    private struct SequencedEvent {
+    fileprivate struct SequencedEvent {
         let time: TimeInterval
         let isOff: Bool
         let note: UInt8
