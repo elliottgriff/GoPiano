@@ -42,6 +42,10 @@ struct RecordingsView: View {
     @State private var handedOff = false
     /// Set while a voice memo is being listened to for its notes.
     @State private var isListening = false
+    /// What the keyboard had loaded when the library opened. Auditioning a
+    /// melody here borrows the player; closing hands the keyboard back what it
+    /// had, unless a melody was sent to it.
+    @State private var keyboardMelody: Conductor.KeyboardMelody?
     @State private var isExplainingVoiceMemos = false
 
     var body: some View {
@@ -88,8 +92,16 @@ struct RecordingsView: View {
         // Follows the instrument it slides up over - dark on the black
         // piano, light on the ivory one - so it never looks like a second app.
         .pageSizedOnPad()
-        .onAppear(perform: reload)
-        .onDisappear { if !handedOff { conductor.stopPlayback() } }
+        .onAppear {
+            conductor.stopPlayback()
+            if keyboardMelody == nil { keyboardMelody = conductor.keyboardMelody }
+            reload()
+        }
+        .onDisappear {
+            guard !handedOff else { return }
+            conductor.stopPlayback()
+            if let keyboardMelody { conductor.restore(keyboardMelody) }
+        }
         .overlay {
             if isListening { ListeningBadge() }
         }
@@ -228,6 +240,15 @@ struct RecordingsView: View {
     @ViewBuilder
     private func actions(for recording: Recording, showingLabels: Bool) -> some View {
         HStack(spacing: 10) {
+            Button {
+                openOnKeyboard(recording)
+            } label: {
+                actionLabel("Keyboard", systemImage: "arrow.down.forward.square",
+                            showingLabels: showingLabels)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Play on the keyboard")
+
             ShareLink(item: recording.url, preview: SharePreview(recording.name)) {
                 actionLabel("Share", systemImage: "square.and.arrow.up",
                             showingLabels: showingLabels)
@@ -333,23 +354,35 @@ struct RecordingsView: View {
         recordings = RecordingStore.shared.all()
         if selection == nil || !recordings.contains(where: { $0 == selection }) {
             selection = recordings.first
-            if let first = selection { try? conductor.load(first) }
         }
     }
 
+    /// Picking a melody only shows it; nothing is loaded until it's played,
+    /// so looking through the list leaves the keyboard as it was.
     private func select(_ recording: Recording) {
         conductor.stopPlayback()
         selection = recording
+    }
+
+    private func togglePlay(_ recording: Recording) {
+        guard !conductor.isPlaying else {
+            conductor.togglePlayback()
+            return
+        }
+        if selection != recording { select(recording) }
         do {
             try conductor.load(recording)
         } catch {
             errorMessage = "That melody could not be opened."
+            return
         }
+        conductor.togglePlayback()
     }
 
-    private func togglePlay(_ recording: Recording) {
-        if !conductor.isPlaying, selection != recording { select(recording) }
-        conductor.togglePlayback()
+    /// Sends the melody to the keyboard - fitted to the keys and playing -
+    /// the one way a melody here ends up loaded there.
+    private func openOnKeyboard(_ recording: Recording) {
+        hand(.recording(recording))
     }
 
     private func exportVideo(_ recording: Recording) {
